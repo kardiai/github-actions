@@ -3,7 +3,6 @@ name: Slack notify
 on:
   workflow_dispatch:
   workflow_call:
-    secrets: inherit
 
 jobs:
   create-release-and-notify:
