@@ -34,7 +34,6 @@ jobs:
         env:
           CHANGE_LOG: ${{ steps.tag_version.outputs.changelog }}
         run: |
-          echo "aaaa"
           export CHANGES=$(git log --pretty="- %s" $VERSION...$PREVIOUS_VERSION)
           printf "# 🎁 Release notes (\`$VERSION\`)\n\n## Changes\n$CHANGES\n\n## Metadata\n\`\`\`\nThis version -------- $VERSION\nPrevious version ---- $PREVIOUS_VERSION\nTotal commits ------- $(echo "$CHANGES" | wc -l)\n\`\`\`\n" >> RELEASE.md
           printf "$CHANGE_LOG" >> RELEASE.md
