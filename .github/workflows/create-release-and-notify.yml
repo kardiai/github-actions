@@ -1,0 +1,121 @@
+name: Slack notify
+
+on:
+  workflow_dispatch:
+  workflow_call:
+
+jobs:
+  create-release-and-notify:
+    name: Create release and notify
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          fetch-depth: '0'
+
+      - name: Bump version and push tag
+        id: tag_version
+        uses: mathieudutour/github-tag-action@v6.0
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          default_bump: patch
+
+      - uses: actions/checkout@v2
+        with:
+          fetch-depth: '0'
+
+      - name: Get version
+        run: echo "VERSION=$(git tag --sort=-creatordate | head -1)" >> $GITHUB_ENV
+
+      - name: Get previous version
+        run: |
+          echo "PREVIOUS_VERSION=$(git tag --sort=-creatordate | head -2 | awk '{split($0, tags, "\n")} END {print tags[1]}')" >> $GITHUB_ENV
+
+      - name: Get changes
+        env:
+          CHANGE_LOG: ${{ steps.tag_version.outputs.changelog }}
+        run: |
+          echo "aaaa"
+          export CHANGES=$(git log --pretty="- %s" $VERSION...$PREVIOUS_VERSION)
+          printf "# 🎁 Release notes (\`$VERSION\`)\n\n## Changes\n$CHANGES\n\n## Metadata\n\`\`\`\nThis version -------- $VERSION\nPrevious version ---- $PREVIOUS_VERSION\nTotal commits ------- $(echo "$CHANGES" | wc -l)\n\`\`\`\n" >> RELEASE.md
+          printf "$CHANGE_LOG" >> RELEASE.md
+          cat RELEASE.md
+
+      - name: Read file contents
+        id: read_file
+        uses: andstor/file-reader-action@v1
+        with:
+          path: "RELEASE.md"
+
+      - name: Create a GitHub release
+        uses: ncipollo/release-action@v1
+        with:
+          tag: ${{ steps.tag_version.outputs.new_tag }}
+          name: Release ${{ steps.tag_version.outputs.new_tag }}
+          body: ${{ steps.read_file.outputs.contents }}
+
+      - name: Slack Notification
+        uses: rtCamp/action-slack-notify@v2
+        env:
+          SLACK_COLOR: ${{ job.status }} # or a specific color like 'good' or '#ff00ff'
+          SLACK_MESSAGE: ${{ steps.read_file.outputs.contents }}
+          SLACK_TITLE: RELEASE >> ${{ github.event.repository.name }}
+          SLACK_USERNAME: 'release-bot'
+          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK_TEST_CHANNEL_PDI }}
+          MSG_MINIMAL: true
+          SLACK_FOOTER: 'Kardi AI Github action release'
+        with:
+          message: ${{ env.CHANGES }}
+
+
+#      - id: slack
+#        uses: slackapi/slack-github-action@v1.23.0
+#        with:
+#          # The following message update step does not accept a channel name.
+#          # Setting a channel ID here for consistency is highly recommended.
+#          channel-id: "C047A2D5Y15"
+#          payload: |
+#            {
+#              "text": "Deployment started (In Progress)",
+#              "attachments": [
+#                {
+#                  "pretext": "Deployment started",
+#                  "color": "dbab09",
+#                  "fields": [
+#                    {
+#                      "title": "Status",
+#                      "short": true,
+#                      "value": "In Progress"
+#                    }
+#                  ]
+#                }
+#              ]
+#            }
+#        env:
+#          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+#
+#      - uses: slackapi/slack-github-action@v1.23.0
+#        with:
+#          # Unlike the step posting a new message, this step does not accept a channel name.
+#          # Please use a channel ID, not a name here.
+#          channel-id: "C047A2D5Y15"
+#          update-ts: ${{ steps.slack.outputs.ts }}
+#          payload: |
+#            {
+#              "text": "Deployment finished (Completed)",
+#              "attachments": [
+#                {
+#                  "pretext": "Deployment finished",
+#                  "color": "28a745",
+#                  "fields": [
+#                    {
+#                      "title": "Status",
+#                      "short": true,
+#                      "value": "Completed"
+#                    }
+#                  ]
+#                }
+#              ]
+#            }
+#        env:
+#          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
