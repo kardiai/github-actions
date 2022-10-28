@@ -63,7 +63,7 @@ jobs:
           echo $IMAGE_TAG
           echo $COMPOSE_CONFIG
           echo $STACK_NAME
-          ssh $SSH_ADDRESS 'df -H; docker pull ${{ IMAGE_TAG }}; STACK_NAME=${{ STACK_NAME }} docker-compose -f ${{ COMPOSE_CONFIG }} up -d'
+          ssh $SSH_ADDRESS 'df -H; docker pull ${{ env.IMAGE_TAG }}; STACK_NAME=${{ env.STACK_NAME }} docker-compose -f ${{ env.COMPOSE_CONFIG }} up -d'
 
       - name: Kill VPN connection
         if: always()
