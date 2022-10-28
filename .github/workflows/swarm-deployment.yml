@@ -63,7 +63,7 @@ jobs:
           echo $IMAGE_TAG
           echo $COMPOSE_CONFIG
           echo $STACK_NAME
-#          ssh ubuntu@10.112.9.125 'df -H; docker pull kardiai/api:latest; STACK_NAME=hearttestland docker-compose -f ~/kardiai-cd/config/heartland/docker-compose-test.yml up -d'
+          ssh $SSH_ADDRESS 'df -H; docker pull $IMAGE_TAG; STACK_NAME=$STACK_NAME docker-compose -f $COMPOSE_CONFIG up -d'
 
       - name: Kill VPN connection
         if: always()
