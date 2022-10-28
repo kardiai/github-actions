@@ -7,7 +7,6 @@ on:
 jobs:
   create-release-and-notify:
     name: Create release and notify
-    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
         with:
