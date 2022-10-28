@@ -76,4 +76,4 @@ jobs:
         if: always()
         with:
           name: VPN logs
-          path: config.log
+          path: vpn.log
