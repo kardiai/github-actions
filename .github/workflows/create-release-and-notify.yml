@@ -3,6 +3,10 @@ name: Slack notify
 on:
   workflow_dispatch:
   workflow_call:
+    inputs:
+      default_bump:
+        required: true
+        type: string
 
 jobs:
   create-release-and-notify:
@@ -18,7 +22,7 @@ jobs:
         uses: mathieudutour/github-tag-action@v6.0
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          default_bump: patch
+          default_bump: ${{ inputs.default_bump }}
 
       - uses: actions/checkout@v2
         with:
