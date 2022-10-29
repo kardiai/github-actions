@@ -60,7 +60,7 @@ jobs:
           SLACK_MESSAGE: ${{ steps.read_file.outputs.contents }}
           SLACK_TITLE: RELEASE >> ${{ github.event.repository.name }}
           SLACK_USERNAME: 'release-bot'
-          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK_TEST_CHANNEL_PDI }}
+          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK_RELEASES }}
           MSG_MINIMAL: true
           SLACK_FOOTER: 'Kardi AI Github action release'
         with:
