@@ -30,13 +30,17 @@ jobs:
           printf "\"}}" >> jira-data.json 
           cat jira-data.json
 
+      - name: Read file contents
+        id: read_file
+        uses: andstor/file-reader-action@v1
+        with:
+          path: "jira-data.json"
 
-#      - name: Deploy Stage
-#        uses: fjogeleit/http-request-action@v1
-#        with:
-#          url: ${{ secrets.JIRA_WEBHOOK_RELEASES }}
-#          method: 'POST'
-#          username: ${{ secrets.AWX_USER }}
-#          password: ${{ secrets.AWX_PASSWORD }}
-#          customHeaders: '{"Content-Type": "application/json"}'
-#          data: ${{ "{\"issues\”:[\"\"], \"data\": {\"releaseVersion”:\”\”, \“versionName\”:\”5.3.3\”}}" }}
+
+      - name: Deploy Stage
+        uses: fjogeleit/http-request-action@v1
+        with:
+          url: ${{ secrets.JIRA_WEBHOOK_RELEASES }}
+          method: 'POST'
+          customHeaders: '{"Content-Type": "application/json"}'
+          data: ${{ steps.read_file.outputs.contents }}
