@@ -33,7 +33,7 @@ jobs:
           printf "\"], \"data\": {\"releaseVersion\":\"" >> jira-data.json 
           printf $MODULE $VERSION >> jira-data.json
           printf "\", \"versionName\":\"" >> jira-data.json
-          printf $PREVIOUS_VERSION >> jira-data.json
+          printf $MODULE $PREVIOUS_VERSION >> jira-data.json
           printf "\"}}" >> jira-data.json 
           cat jira-data.json
 
