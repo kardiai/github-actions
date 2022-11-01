@@ -25,9 +25,9 @@ jobs:
 
       - name: Get data json
         run: |
-          printf "{\"issues\":[" >> jira-data.json
+          printf "{\"issues\":[\"" >> jira-data.json
           printf ${{ inputs.jira_ticket }} >> jira-data.json 
-          printf "], \"data\": {\"releaseVersion\":\"" >> jira-data.json 
+          printf "\"], \"data\": {\"releaseVersion\":\"" >> jira-data.json 
           printf $VERSION >> jira-data.json
           printf "\", \"versionName\":\"" >> jira-data.json
           printf $PREVIOUS_VERSION >> jira-data.json
