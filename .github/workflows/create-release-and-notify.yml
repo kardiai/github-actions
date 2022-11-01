@@ -1,4 +1,4 @@
-name: Slack notify
+name: Tag release and notify in slack
 
 on:
   workflow_dispatch:

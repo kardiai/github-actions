@@ -1,0 +1,57 @@
+name: Jira release
+
+on:
+  workflow_call:
+    inputs:
+      jira_ticket:
+        required: true
+        type: string
+      module:
+        required: true
+        type: string
+
+jobs:
+  jira-release:
+    name: Create Jira release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          fetch-depth: '0'
+
+      - name: Get version
+        run: echo "VERSION=$(git tag --sort=-creatordate | head -1)" >> $GITHUB_ENV
+
+      - name: Get previous version
+        run: |
+          echo "PREVIOUS_VERSION=$(git tag --sort=-creatordate | head -2 | awk '{split($0, tags, "\n")} END {print tags[1]}')" >> $GITHUB_ENV
+
+      - name: Get data json
+        run: |
+          printf "{\"issues\":[\"" >> jira-data.json
+          printf ${{ inputs.jira_ticket }} >> jira-data.json 
+          printf "\"], \"data\": {\"releaseVersion\":\"" >> jira-data.json 
+          printf ${{ inputs.module }} >> jira-data.json
+          printf " " >> jira-data.json
+          printf $VERSION >> jira-data.json
+          printf "\", \"versionName\":\"" >> jira-data.json
+          printf ${{ inputs.module }} >> jira-data.json 
+          printf " " >> jira-data.json
+          printf $PREVIOUS_VERSION >> jira-data.json
+          printf "\"}}" >> jira-data.json 
+          cat jira-data.json
+
+      - name: Read file contents
+        id: read_file
+        uses: andstor/file-reader-action@v1
+        with:
+          path: "jira-data.json"
+
+
+      - name: Deploy Stage
+        uses: fjogeleit/http-request-action@v1
+        with:
+          url: ${{ secrets.JIRA_WEBHOOK_RELEASES }}
+          method: 'POST'
+          customHeaders: '{"Content-Type": "application/json"}'
+          data: ${{ steps.read_file.outputs.contents }}
