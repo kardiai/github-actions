@@ -21,13 +21,13 @@ jobs:
 
       - name: Get data json
         run: |
-          print '{"issues”:[' >> jira-data.json
-          print 'KA-12 ' >> jira-data.json 
-          print '], "data": {"releaseVersion”:”' >> jira-data.json 
-          print '5.3.2' >> jira-data.json
-          print '”, “versionName”:”' >> jira-data.json
-          print '5.3.3' >> jira-data.json
-          print '”}}' >> jira-data.json 
+          print "{\"issues\":[" >> jira-data.json
+          print "KA-12" >> jira-data.json 
+          print "], \"data\": {\"releaseVersion\":\"" >> jira-data.json 
+          print "5.3.2" >> jira-data.json
+          print "\", \"versionName\":\"" >> jira-data.json
+          print "5.3.3" >> jira-data.json
+          print "\"}}" >> jira-data.json 
           cat jira-data.json
 
 
