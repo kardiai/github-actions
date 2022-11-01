@@ -2,6 +2,10 @@ name: Jira release
 
 on:
   workflow_call:
+    inputs:
+      jira_ticket:
+        required: true
+        type: string
 
 jobs:
   jira-release:
@@ -22,11 +26,11 @@ jobs:
       - name: Get data json
         run: |
           printf "{\"issues\":[" >> jira-data.json
-          printf "KA-12" >> jira-data.json 
+          printf ${{ inputs.jira_ticket }} >> jira-data.json 
           printf "], \"data\": {\"releaseVersion\":\"" >> jira-data.json 
-          printf "5.3.2" >> jira-data.json
+          printf $VERSION >> jira-data.json
           printf "\", \"versionName\":\"" >> jira-data.json
-          printf "5.3.3" >> jira-data.json
+          printf $PREVIOUS_VERSION >> jira-data.json
           printf "\"}}" >> jira-data.json 
           cat jira-data.json
 
