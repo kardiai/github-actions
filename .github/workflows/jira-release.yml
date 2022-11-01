@@ -31,10 +31,12 @@ jobs:
           printf "{\"issues\":[\"" >> jira-data.json
           printf ${{ inputs.jira_ticket }} >> jira-data.json 
           printf "\"], \"data\": {\"releaseVersion\":\"" >> jira-data.json 
-          printf ${{ inputs.module }}
+          printf ${{ inputs.module }} >> jira-data.json
+          printf " " >> jira-data.json
           printf $VERSION >> jira-data.json
           printf "\", \"versionName\":\"" >> jira-data.json
           printf ${{ inputs.module }} >> jira-data.json 
+          printf " " >> jira-data.json
           printf $PREVIOUS_VERSION >> jira-data.json
           printf "\"}}" >> jira-data.json 
           cat jira-data.json
