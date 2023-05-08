@@ -7,6 +7,9 @@ on:
       image_tag:
         required: true
         type: string
+      job_name:
+        required: true
+        type: string
       aws_region:
         required: true
         type: string
@@ -36,6 +39,6 @@ jobs:
 
       - name: re-tag Docker Image
         run: |
-          docker pull ${{ inputs.image_tag }}
-          docker tag $${{ inputs.image_tag }} ${{ inputs.image_tag }}-${{ steps.date.outputs.date }}
-          docker push ${{ inputs.image_tag }}-${{ steps.date.outputs.date }}
+          docker pull ${{ inputs.image_tag }}:${{ inputs.job_name }}
+          docker tag ${{ inputs.image_tag }}:${{ inputs.job_name }} ${{ inputs.image_tag }}:${{ inputs.job_name }}-${{ steps.date.outputs.date }}
+          docker push ${{ inputs.image_tag }}:${{ inputs.job_name }}-${{ steps.date.outputs.date }}
