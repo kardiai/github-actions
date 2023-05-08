@@ -42,3 +42,9 @@ jobs:
           docker pull ${{ inputs.image_tag }}:${{ inputs.job_name }}
           docker tag ${{ inputs.image_tag }}:${{ inputs.job_name }} ${{ inputs.image_tag }}:${{ inputs.job_name }}-${{ steps.date.outputs.date }}
           docker push ${{ inputs.image_tag }}:${{ inputs.job_name }}-${{ steps.date.outputs.date }}
+
+      - name: Build Docker Image
+        if: always()
+        run: |
+          docker build -t ${{ inputs.image_tag }}:${{ inputs.job_name }} -f Dockerfile-${{ inputs.job_name }} .
+          docker push ${{ inputs.image_tag }}:${{ inputs.job_name }}
