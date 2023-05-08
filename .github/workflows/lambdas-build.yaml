@@ -3,12 +3,23 @@ name: Dockers Build & Push
 on:
   workflow_dispatch:
   workflow_call:
+    inputs:
+      image_tag:
+        required: true
+        type: string
 
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
       - name: Get current date
         id: date
         run: echo "::set-output name=date::$(date +'%Y%m%d-%H%M')"
+      
+      - name: Test
+        id: test
+        run: echo ${{ inputs.image_tag }}
