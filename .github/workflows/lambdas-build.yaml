@@ -29,3 +29,13 @@ jobs:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ inputs.aws_region }}
+
+      - name: Login to Amazon ECR
+        id: ecr-docker
+        uses: aws-actions/amazon-ecr-login@v1
+
+      - name: re-tag Docker Image
+        run: |
+          docker pull ${{ inputs.image_tag }}
+          docker tag $${{ inputs.image_tag }} ${{ inputs.image_tag }}-${{ steps.date.outputs.date }}
+          docker push ${{ inputs.image_tag }}-${{ steps.date.outputs.date }}
