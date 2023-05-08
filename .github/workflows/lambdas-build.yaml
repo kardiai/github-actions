@@ -13,6 +13,9 @@ on:
       aws_region:
         required: true
         type: string
+      build_for:
+        required: true
+        type: string
 
 jobs:
   build-and-push:
@@ -39,12 +42,12 @@ jobs:
 
       - name: re-tag Docker Image
         run: |
-          docker pull ${{ inputs.image_tag }}:${{ inputs.job_name }}
-          docker tag ${{ inputs.image_tag }}:${{ inputs.job_name }} ${{ inputs.image_tag }}:${{ inputs.job_name }}-${{ steps.date.outputs.date }}
-          docker push ${{ inputs.image_tag }}:${{ inputs.job_name }}-${{ steps.date.outputs.date }}
+          docker pull ${{ inputs.image_tag }}-${{ inputs.build_for }}:${{ inputs.job_name }}
+          docker tag ${{ inputs.image_tag }}-${{ inputs.build_for }}:${{ inputs.job_name }} ${{ inputs.image_tag }}-${{ inputs.build_for }}:${{ inputs.job_name }}-${{ steps.date.outputs.date }}
+          docker push ${{ inputs.image_tag }}-${{ inputs.build_for }}:${{ inputs.job_name }}-${{ steps.date.outputs.date }}
 
       - name: Build Docker Image
         if: always()
         run: |
-          docker build -t ${{ inputs.image_tag }}:${{ inputs.job_name }} -f Dockerfile-${{ inputs.job_name }} .
-          docker push ${{ inputs.image_tag }}:${{ inputs.job_name }}
+          docker build -t ${{ inputs.image_tag }}-${{ inputs.build_for }}:${{ inputs.job_name }} -f ./Dockerfile-${{ inputs.job_name }} .
+          docker push ${{ inputs.image_tag }}-${{ inputs.build_for }}:${{ inputs.job_name }}
