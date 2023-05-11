@@ -67,5 +67,5 @@ jobs:
           aws_region: ${{ inputs.aws_region }}
           function_name: "${{ inputs.job_name }}-${{ inputs.build_for }}"
           image_uri: "${{ inputs.image_tag }}-${{ inputs.build_for }}:${{ inputs.job_name }}"
-          dry_run: true
+          dry_run: false
           
