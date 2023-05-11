@@ -52,11 +52,15 @@ jobs:
           docker build -t ${{ inputs.image_tag }}-${{ inputs.build_for }}:${{ inputs.job_name }} -f ./Dockerfile-${{ inputs.job_name }} .
           docker push ${{ inputs.image_tag }}-${{ inputs.build_for }}:${{ inputs.job_name }}
 
-  # lambda-update:
-  #   runs-on: ubuntu-latest
-  #   needs: build-and-push
+  lambda-update:
+    runs-on: ubuntu-latest
+    needs: build-and-push
     
-  #   steps:
+    steps:
+      - name: test
+        run: |
+          aws --version
+
   #     - uses: actions/checkout@v3
   #     - name: AWS Lambda function update
   #       uses: appleboy/lambda-action@v0.1.9
