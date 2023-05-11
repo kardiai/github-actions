@@ -51,3 +51,11 @@ jobs:
         run: |
           docker build -t ${{ inputs.image_tag }}-${{ inputs.build_for }}:${{ inputs.job_name }} -f ./Dockerfile-${{ inputs.job_name }} .
           docker push ${{ inputs.image_tag }}-${{ inputs.build_for }}:${{ inputs.job_name }}
+
+  lambda-update:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: test
+        run: |
+          echo "${{ inputs.image_tag }}-${{ inputs.build_for }}:${{ inputs.job_name }}"
