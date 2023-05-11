@@ -57,6 +57,15 @@ jobs:
     needs: build-and-push
     
     steps:
-      - name: test
-        run: |
-          echo "${{ inputs.image_tag }}-${{ inputs.build_for }}:${{ inputs.job_name }}"
+      - uses: actions/checkout@v3
+      - name: AWS Lambda function update
+        if: github.ref == 'refs/heads/master'
+        uses: appleboy/lambda-action@v0.1.9
+        with:
+          aws_access_key_id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws_secret_access_key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws_region: ${{ inputs.aws_region }}
+          function_name: "${{ inputs.job_name }}-${{ inputs.build_for }}"
+          image_uri: "${{ inputs.image_tag }}-${{ inputs.build_for }}:${{ inputs.job_name }}"
+          dry_run: true
+          
