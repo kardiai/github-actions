@@ -19,8 +19,8 @@ on:
 
 jobs:
   build-and-push:
-    runs-on: ubuntu-latest
     name: ${{ inputs.job_name }} build and push
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout code
@@ -54,6 +54,7 @@ jobs:
           docker push ${{ inputs.image_tag }}-${{ inputs.build_for }}:${{ inputs.job_name }}
 
   lambda-update:
+    name: ${{ inputs.job_name }} lambda-update
     runs-on: ubuntu-latest
     needs: build-and-push
     
