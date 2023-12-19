@@ -46,7 +46,7 @@ jobs:
         # run: until dig @your-dns-resolver your-server-address A +time=1; do sleep 2; done
 
       - name: Install SSH key
-        uses: shimataro/ssh-key-action@v2.3.1
+        uses: shimataro/ssh-key-action@38b53cb2f445ea2e0eb8872407e366677c41dbc6
         with:
           key: ${{ secrets.SSH_ID_RSA_KEY }}
           name: id_rsa
@@ -72,7 +72,7 @@ jobs:
           sudo killall openvpn          
 
       - name: Upload VPN logs
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v4.0.0
         if: always()
         with:
           name: VPN logs
