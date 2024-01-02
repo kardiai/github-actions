@@ -1,0 +1,76 @@
+name: Dockers Build & Push
+
+on:
+  workflow_dispatch:
+  workflow_call:
+    inputs:
+      image_tag:
+        required: true
+        type: string
+      job_name:
+        required: true
+        type: string
+      aws_region:
+        required: true
+        type: string
+      build_for:
+        required: true
+        type: string
+      platform:
+        required: false
+        type: string
+        default: 'linux/amd64'
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+      
+      - name: Get current date
+        id: date
+        run: echo "::set-output name=date::$(date +'%Y%m%d-%H%M')"
+      
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ inputs.aws_region }}
+
+      - name: Login to Amazon ECR
+        id: ecr-docker
+        uses: aws-actions/amazon-ecr-login@v1
+
+      - name: re-tag Docker Image
+        run: |
+          docker pull ${{ inputs.image_tag }}-${{ inputs.build_for }}:${{ inputs.job_name }}
+          docker tag ${{ inputs.image_tag }}-${{ inputs.build_for }}:${{ inputs.job_name }} ${{ inputs.image_tag }}-${{ inputs.build_for }}:${{ inputs.job_name }}-${{ steps.date.outputs.date }}
+          docker push ${{ inputs.image_tag }}-${{ inputs.build_for }}:${{ inputs.job_name }}-${{ steps.date.outputs.date }}
+
+      - name: Build Docker Image
+        if: always()
+        run: |
+          cd ./lambda_inference
+          docker build -t ${{ inputs.image_tag }}-${{ inputs.build_for }}:${{ inputs.job_name }} --platform=${{ inputs.platform }}  -f ./Dockerfiles/Dockerfile-${{ inputs.job_name }} .
+          docker push ${{ inputs.image_tag }}-${{ inputs.build_for }}:${{ inputs.job_name }}
+  lambda-update:
+    runs-on: ubuntu-latest
+    needs: build-and-push
+    
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ inputs.aws_region }}
+
+      - name: Lambda update (awc cli)
+        run: |
+          aws lambda update-function-code --function-name ${{ inputs.job_name }}-${{ inputs.build_for }} --image-uri ${{ inputs.image_tag }}-${{ inputs.build_for }}:${{ inputs.job_name }} --region ${{ inputs.aws_region }} --output yaml --no-cli-pager
