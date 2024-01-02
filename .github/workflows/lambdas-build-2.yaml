@@ -16,6 +16,10 @@ on:
       build_for:
         required: true
         type: string
+      platform:
+        required: false
+        type: string
+        default: 'linux/amd64'
 
 jobs:
   build-and-push:
@@ -50,7 +54,7 @@ jobs:
         if: always()
         run: |
           cd ./lambda_inference
-          docker build -t ${{ inputs.image_tag }}-${{ inputs.build_for }}:${{ inputs.job_name }} -f ./Dockerfiles/Dockerfile-${{ inputs.job_name }} .
+          docker build -t ${{ inputs.image_tag }}-${{ inputs.build_for }}:${{ inputs.job_name }} --platform=${{ inputs.platform }}  -f ./Dockerfiles/Dockerfile-${{ inputs.job_name }} .
           docker push ${{ inputs.image_tag }}-${{ inputs.build_for }}:${{ inputs.job_name }}
 
   lambda-update:
