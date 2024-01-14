@@ -44,6 +44,6 @@ jobs:
         if: always()
         run: |
           docker build -t ${{ inputs.repository }}/${{ inputs.component }}:${{ inputs.image_tag }} -f ./Dockerfile-${{ inputs.component }} .
-          docker push ${{ inputs.repository }}/${{ inputs.component }}:${{ inputs.image_tag }}
           docker tag ${{ inputs.repository }}/${{ inputs.component }}:${{ inputs.image_tag }} ${{ inputs.repository }}/${{ inputs.component }}:latest
+          docker push ${{ inputs.repository }}/${{ inputs.component }}:${{ inputs.image_tag }}
           docker push ${{ inputs.repository }}/${{ inputs.component }}:latest
