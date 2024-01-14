@@ -1,0 +1,53 @@
+name: Dockers Build & Push
+
+on:
+  workflow_dispatch:
+  workflow_call:
+    inputs:
+      image_tag:
+        required: true
+        type: string
+      component:
+        required: true
+        type: string
+      aws_region:
+        required: true
+        type: string
+      repository:
+        required: true
+        type: string
+      platform:
+        required: false
+        type: string
+        default: 'linux/amd64'
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Get current date
+        id: date
+        run: echo "::set-output name=date::$(date +'%Y%m%d-%H%M')"
+      
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ inputs.aws_region }}
+
+      - name: Login to Amazon ECR
+        id: ecr-docker
+        uses: aws-actions/amazon-ecr-login@v1
+
+      - name: Build Docker Image
+        if: always()
+        run: |
+          docker build -t ${{ inputs.repository }}/${{ inputs.component }}:${{ inputs.image_tag }} --platform=${{ inputs.platform }} -f ./Dockerfile-${{ inputs.component }} .
+          docker tag ${{ inputs.repository }}/${{ inputs.component }}:${{ inputs.image_tag }} ${{ inputs.repository }}/${{ inputs.component }}:latest
+          docker push ${{ inputs.repository }}/${{ inputs.component }}:${{ inputs.image_tag }}
+          docker push ${{ inputs.repository }}/${{ inputs.component }}:latest
