@@ -47,7 +47,7 @@ jobs:
       - name: Build Docker Image
         if: always()
         run: |
-          docker build -t ${{ inputs.repository }}/${{ inputs.component }}:${{ inputs.image_tag }} --platform=linux/amd64,linux/arm64 -f ./Dockerfile-${{ inputs.component }} .
+          docker build -t ${{ inputs.repository }}/${{ inputs.component }}:${{ inputs.image_tag }} --platform=${{ inputs.platform }} -f ./Dockerfile-${{ inputs.component }} .
           docker tag ${{ inputs.repository }}/${{ inputs.component }}:${{ inputs.image_tag }} ${{ inputs.repository }}/${{ inputs.component }}:latest
           docker push ${{ inputs.repository }}/${{ inputs.component }}:${{ inputs.image_tag }}
           docker push ${{ inputs.repository }}/${{ inputs.component }}:latest
