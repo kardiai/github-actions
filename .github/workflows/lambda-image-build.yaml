@@ -19,7 +19,7 @@ on:
       platform:
         required: false
         type: string
-        default: 'linux/amd64'
+        default: 'linux/arm64'
 
 jobs:
   build-and-push:
