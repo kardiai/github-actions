@@ -21,11 +21,11 @@ on:
         type: string
         default: 'linux/arm64'
       dockerfile_path:
-        required: true
+        required: false
         type: string
         default: './'
       sourcefile_path:
-        required: true
+        required: false
         type: string
         default: './'
 
