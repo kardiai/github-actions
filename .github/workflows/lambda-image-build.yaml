@@ -24,6 +24,10 @@ on:
         required: true
         type: string
         default: './'
+      sourcefile_path:
+        required: true
+        type: string
+        default: './'
 
 jobs:
   build-and-push:
@@ -54,6 +58,7 @@ jobs:
       - name: Build Docker Image
         if: always()
         run: |
+          cd ${{ inputs.sourcefile_path }}
           docker build -t ${{ inputs.repository }}/${{ inputs.component }}:${{ inputs.image_tag }} --platform=${{ inputs.platform }} -f ${{ inputs.dockerfile_path }}Dockerfile-${{ inputs.component }} .
           docker tag ${{ inputs.repository }}/${{ inputs.component }}:${{ inputs.image_tag }} ${{ inputs.repository }}/${{ inputs.component }}:latest
           docker push ${{ inputs.repository }}/${{ inputs.component }}:${{ inputs.image_tag }}
