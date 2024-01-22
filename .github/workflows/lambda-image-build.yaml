@@ -17,9 +17,13 @@ on:
         required: true
         type: string
       platform:
-        required: false
+        required: true
         type: string
         default: 'linux/arm64'
+      dockerfile_path:
+        required: true
+        type: string
+        default: './'
 
 jobs:
   build-and-push:
@@ -50,7 +54,7 @@ jobs:
       - name: Build Docker Image
         if: always()
         run: |
-          docker build -t ${{ inputs.repository }}/${{ inputs.component }}:${{ inputs.image_tag }} --platform=${{ inputs.platform }} -f ./Dockerfile-${{ inputs.component }} .
+          docker build -t ${{ inputs.repository }}/${{ inputs.component }}:${{ inputs.image_tag }} --platform=${{ inputs.platform }} -f ${{ inputs.dockerfile_path }}Dockerfile-${{ inputs.component }} .
           docker tag ${{ inputs.repository }}/${{ inputs.component }}:${{ inputs.image_tag }} ${{ inputs.repository }}/${{ inputs.component }}:latest
           docker push ${{ inputs.repository }}/${{ inputs.component }}:${{ inputs.image_tag }}
           docker push ${{ inputs.repository }}/${{ inputs.component }}:latest
