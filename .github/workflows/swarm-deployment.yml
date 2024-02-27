@@ -35,7 +35,8 @@ jobs:
           echo "${{ secrets.OPENVPN_USER_CRT }}" > user.crt
           echo "${{ secrets.OPENVPN_USER_KEY }}" > user.key
           echo "${{ secrets.OPENVPN_TLS_KEY }}" > tls.key
-          echo "${{ secrets.SSH_KNOWN_HOSTS }}"
+          echo "${{ secrets.SSH_KNOWN_HOSTS }}" > known_hosts
+          cat known_hosts
 
       - name: Connect VPN
         run: sudo openvpn --config ".github/config/github-config.ovpn" --log "vpn.log" --daemon
