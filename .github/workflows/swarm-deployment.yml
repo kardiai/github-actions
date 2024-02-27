@@ -38,6 +38,13 @@ jobs:
           echo "${{ secrets.SSH_KNOWN_HOSTS }}" > known_hosts
           cat known_hosts
 
+      - name: Upload known
+        uses: actions/upload-artifact@v4.0.0
+        if: always()
+        with:
+          name: known
+          path: known_hosts
+
       - name: Connect VPN
         run: sudo openvpn --config ".github/config/github-config.ovpn" --log "vpn.log" --daemon
 
