@@ -1,4 +1,4 @@
-name: Build image from master
+name: Tag image in Docker repo
 
 on:
   workflow_dispatch:

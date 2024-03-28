@@ -1,4 +1,4 @@
-name: Dockers Build & Push
+name: Dockers Build & Push - lambda build 2
 
 on:
   workflow_dispatch:
