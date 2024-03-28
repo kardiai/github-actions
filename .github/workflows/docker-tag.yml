@@ -41,7 +41,7 @@ jobs:
       - name: Docker tag
         run: |
           docker pull ${{ inputs.image_name }}
-          docker tag ${{ inputs.image_name }} ${{ inputs.image_name }}:${{ inputs.image_version }}
+          docker tag ${{ inputs.image_name }}:latest ${{ inputs.image_name }}:${{ inputs.image_version }}
           docker push ${{ inputs.image_name }}:${{ inputs.image_version }}
 
 
