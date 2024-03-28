@@ -7,11 +7,18 @@ on:
       default_bump:
         required: true
         type: string
+    outputs:
+      new_tag:
+        description: "Generated tag"
+        value: ${{ jobs.create-release-and-notify.outputs.new_tag }}
+
 
 jobs:
   create-release-and-notify:
     name: Create release and notify
     runs-on: ubuntu-latest
+    outputs:
+      new_tag: ${{ steps.tag_version.outputs.new_tag }}
     steps:
       - uses: actions/checkout@v4.1.1
         with:
