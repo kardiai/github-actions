@@ -66,7 +66,7 @@ jobs:
           echo $COMPOSE_CONFIG
           echo $STACK_NAME
           scp kardiai-release/* $SSH_ADDRESS:~/kardiai-release
-          ssh $SSH_ADDRESS 'df -H; bash ~/kardiai-release/update-images.sh; STACK_NAME=${{ env.STACK_NAME }} docker-compose -f ${{ env.COMPOSE_CONFIG }} --file ~/kardiai-release/swarm-versions.env up -d'
+          ssh $SSH_ADDRESS 'df -H; bash ~/kardiai-release/update-images.sh; STACK_NAME=${{ env.STACK_NAME }} docker-compose -f ${{ env.COMPOSE_CONFIG }} --env-file ~/kardiai-release/swarm-versions.env up -d'
 
       - name: Kill VPN connection
         if: always()
