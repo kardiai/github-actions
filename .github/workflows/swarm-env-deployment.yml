@@ -1,0 +1,82 @@
+name: Deploy test
+
+on:
+  workflow_dispatch:
+  workflow_call:
+    inputs:
+      ssh_address:
+        required: true
+        type: string
+      compose_config:
+        required: true
+        type: string
+      stack_name:
+        required: true
+        type: string
+
+jobs:
+  deploy:
+    runs-on: ubuntu-20.04
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Download scripts
+        uses: actions/download-artifact@v2
+        with:
+          name: kardiai-release
+          path: kardiai-release/
+          retention-days: 1
+
+      - name: Install OpenVPN
+        run: |
+          sudo apt-get update
+          sudo apt-get --assume-yes --no-install-recommends install openvpn          
+
+      - name: Setup VPN config
+        run: |
+          echo "${{ secrets.OPENVPN_CA_CRT }}" > ca.crt
+          echo "${{ secrets.OPENVPN_USER_CRT }}" > user.crt
+          echo "${{ secrets.OPENVPN_USER_KEY }}" > user.key
+          echo "${{ secrets.OPENVPN_TLS_KEY }}" > tls.key          
+
+      - name: Connect VPN
+        run: sudo openvpn --config ".github/config/github-config.ovpn" --log "vpn.log" --daemon
+
+      - name: Wait for a VPN connection
+        timeout-minutes: 1
+        run: until ping -c1 10.112.9.49; do sleep 2; done
+        # OR
+        # run: until dig @your-dns-resolver your-server-address A +time=1; do sleep 2; done
+
+      - name: Install SSH key
+        uses: shimataro/ssh-key-action@v2.3.1
+        with:
+          key: ${{ secrets.SSH_ID_RSA_KEY }}
+          name: id_rsa
+          known_hosts: ${{ secrets.SSH_KNOWN_HOSTS }}
+
+      - name: ssh
+        env:
+          SSH_ADDRESS: ${{ inputs.ssh_address }}
+          COMPOSE_CONFIG: ${{ inputs.compose_config }}
+          STACK_NAME: ${{ inputs.stack_name }}
+        run: |
+          echo $SSH_ADDRESS
+          echo $COMPOSE_CONFIG
+          echo $STACK_NAME
+          scp kardiai-release/* $SSH_ADDRESS:~/kardiai-release
+          ssh $SSH_ADDRESS 'df -H; bash ~/kardiai-release/update-images.sh; STACK_NAME=${{ env.STACK_NAME }} docker compose -f ${{ env.COMPOSE_CONFIG }} --env-file ~/kardiai-release/swarm-versions.env up -d'
+
+      - name: Kill VPN connection
+        if: always()
+        run: |
+          sudo chmod 777 vpn.log
+          sudo killall openvpn          
+
+      - name: Upload VPN logs
+        uses: actions/upload-artifact@v2
+        if: always()
+        with:
+          name: VPN logs
+          path: vpn.log

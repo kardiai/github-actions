@@ -11,23 +11,10 @@ on:
         required: true
         type: string
       branch:
-        required: true
         type: string
 
 jobs:
-   # linter:
-   # runs-on: ubuntu-latest
-   # steps:
-   # - uses: actions/checkout@v3
-   # - name: Super-Linter
-   #   uses: github/super-linter@v4.9.7
-   #   env:
-   #     VALIDATE_ALL_CODEBASE: false
-   #     DEFAULT_BRANCH: ${{ inputs.branch }}
-   #     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
   build:
-    # needs: [linter]
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v3
