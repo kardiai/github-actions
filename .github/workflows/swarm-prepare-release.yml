@@ -1,0 +1,33 @@
+name: Swarm prepare release
+
+on:
+  workflow_dispatch:
+  workflow_call:
+
+jobs:
+  prepare-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Installation of the necessary tools
+        run: |
+          pip install yamllint
+
+      - name: Runs yamllint on all the yaml file of the repository
+        run: yamllint -f colored --no-warnings --strict .
+
+      - name: Command generator
+        run: |
+          mkdir -p kardiai-release
+          yq e '.swarm[] | (.app + "_VERSION" + "=" + .version)' swarm.yaml > kardiai-release/swarm-versions.env
+          yq e '.swarm[] | ("docker pull " + .image + ":" + .version)' swarm.yaml > kardiai-release/update-images.sh
+          ls -l kardiai-release
+
+      - name: Upload scripts
+        uses: actions/upload-artifact@v2
+        with:
+          name: kardiai-release
+          path: kardiai-release
+          retention-days: 1
