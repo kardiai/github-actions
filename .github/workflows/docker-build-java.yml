@@ -12,6 +12,9 @@ on:
         type: string
       branch:
         type: string
+      java_version:
+        type: number
+        default: 11
 
 jobs:
   build:
@@ -22,10 +25,10 @@ jobs:
 
     steps:
       - uses: actions/checkout@v3
-      - name: Set up JDK 11
+      - name: Set up JDK
         uses: actions/setup-java@v3
         with:
-          java-version: '11'
+          java-version: ${{ inputs.java_version }}
           distribution: 'temurin'
           server-id: github # Value of the distributionManagement/repository/id field of the pom.xml
           settings-path: ${{ github.workspace }} # location for the settings.xml file
