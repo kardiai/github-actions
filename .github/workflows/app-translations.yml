@@ -34,10 +34,10 @@ jobs:
         with:
           token: ${{ secrets.TOLGEE_GH_PAT_TOKEN }}
           committer: 'github-actions[bot] <devops+gha-translations@kardi-ai.com>'
-          commit-message: Update translations
+          commit-message: Update app translations
           branch: app-translations
-          title: Update translations
+          title: Update app translations
           body: |
             This PR updates translations fetched from [Tolgee](https://app.tolgee.io/projects/${{ env.TOLGEE_PROJECT_ID }}).
-          labels: translations
+          labels: app-translations
           delete-branch: true
