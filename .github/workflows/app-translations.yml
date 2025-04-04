@@ -39,5 +39,5 @@ jobs:
           title: Update translations
           body: |
             This PR updates translations fetched from [Tolgee](https://app.tolgee.io/projects/${{ env.TOLGEE_PROJECT_ID }}).
-          labels: translations, ${{ inputs.environment }}
+          labels: translations
           delete-branch: true
