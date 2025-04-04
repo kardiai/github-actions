@@ -32,7 +32,7 @@ jobs:
       - name: Create Pull Request
         uses: peter-evans/create-pull-request@v7
         with:
-          token: ${{ secrets.TOLGEE_PAT_TOKEN }}
+          token: ${{ secrets.TOLGEE_GH_PAT_TOKEN }}
           committer: 'github-actions[bot] <devops+gha-translations@kardi-ai.com>'
           commit-message: Update translations
           branch: app-translations
