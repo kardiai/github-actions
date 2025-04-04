@@ -1,0 +1,37 @@
+name: Get App Translations
+
+on:
+  workflow_dispatch:
+
+env:
+  TOLGEE_PROJECT_ID: 11682
+  TOLGEE_API_KEY: ${{ secrets.TOLGEE_API_KEY }}
+
+jobs:
+  fetch-translations:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # get translations from tolgee
+      - name: Get Translations
+        run: |
+          echo "Fetching translations from Tolgee..."
+          ./tolgee.sh
+        env:
+          TOLGEE_API_KEY: ${{ secrets.TOLGEE_API_KEY }}
+          TOLGEE_PROJECT_ID: ${{ env.TOLGEE_PROJECT_ID }}
+
+      - name: Create Pull Request
+        uses: peter-evans/create-pull-request@v7
+        with:
+          token: ${{ secrets.TOLGEE_PAT_TOKEN }}
+          committer: 'github-actions[bot] <devops+gha-translations@kardi-ai.com>'
+          commit-message: Update translations
+          branch: app-translations
+          title: Update translations
+          body: |
+            This PR updates translations fetched from [Tolgee](https://app.tolgee.io/projects/${{ env.TOLGEE_PROJECT_ID }}).
+          labels: translations, ${{ inputs.environment }}
+          delete-branch: true
