@@ -2,9 +2,15 @@ name: Get App Translations
 
 on:
   workflow_dispatch:
+  workflow_call:
+    inputs:
+      TOLGEE_PROJECT_ID:
+        required: true
+        type: string
+        description: Tolgee project ID
 
 env:
-  TOLGEE_PROJECT_ID: 11682
+  TOLGEE_PROJECT_ID: ${{ inputs.TOLGEE_PROJECT_ID }}
   TOLGEE_API_KEY: ${{ secrets.TOLGEE_API_KEY }}
 
 jobs:
