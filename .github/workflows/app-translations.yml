@@ -37,7 +37,7 @@ jobs:
         env:
           TOLGEE_API_KEY: ${{ secrets.TOLGEE_API_KEY }}
           TOLGEE_PROJECT_ID: ${{ env.TOLGEE_PROJECT_ID }}
-          TOLGEE_SCRIPT_LOCATION_DIR: ${{ var.TOLGEE_SCRIPT_LOCATION_DIR }}
+          TOLGEE_SCRIPT_LOCATION_DIR: ${{ env.TOLGEE_SCRIPT_LOCATION_DIR }}
 
       - name: Create Pull Request
         uses: peter-evans/create-pull-request@v7
