@@ -12,6 +12,8 @@ on:
 env:
   TOLGEE_PROJECT_ID: ${{ inputs.TOLGEE_PROJECT_ID }}
   TOLGEE_API_KEY: ${{ secrets.TOLGEE_API_KEY }}
+  # sometimes location of script can be different
+  TOLGEE_SCRIPT_LOCATION: tolgee.sh
 
 jobs:
   fetch-translations:
@@ -24,7 +26,7 @@ jobs:
       - name: Get Translations
         run: |
           echo "Fetching translations from Tolgee..."
-          ./tolgee.sh
+          ./${{ env.TOLGEE_SCRIPT_LOCATION }}
         env:
           TOLGEE_API_KEY: ${{ secrets.TOLGEE_API_KEY }}
           TOLGEE_PROJECT_ID: ${{ env.TOLGEE_PROJECT_ID }}
