@@ -28,8 +28,8 @@ jobs:
       - name: Get Translations
         run: |
           echo "Fetching translations from Tolgee..."
-          if [[ ${{ inputs.TOLGEE_SCRIPT_LOCATION_DIR }} != "" ]]; then 
-            cd ${{ inputs.TOLGEE_SCRIPT_LOCATION_DIR }}
+          if [[ $TOLGEE_SCRIPT_LOCATION_DIR != "" ]]; then 
+            cd $TOLGEE_SCRIPT_LOCATION_DIR
             ./tolgee.sh
           else 
             ./tolgee.sh
@@ -37,6 +37,7 @@ jobs:
         env:
           TOLGEE_API_KEY: ${{ secrets.TOLGEE_API_KEY }}
           TOLGEE_PROJECT_ID: ${{ env.TOLGEE_PROJECT_ID }}
+          TOLGEE_SCRIPT_LOCATION_DIR: ${{ var.TOLGEE_SCRIPT_LOCATION_DIR }}
 
       - name: Create Pull Request
         uses: peter-evans/create-pull-request@v7
