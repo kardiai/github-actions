@@ -8,12 +8,14 @@ on:
         required: true
         type: string
         description: Tolgee project ID
+      TOLGEE_SCRIPT_LOCATION_DIR:
+        required: false
+        type: string
+        description: Directory where the Tolgee script is located. If not provided, it will run in the current directory.
 
 env:
   TOLGEE_PROJECT_ID: ${{ inputs.TOLGEE_PROJECT_ID }}
   TOLGEE_API_KEY: ${{ secrets.TOLGEE_API_KEY }}
-  # sometimes location of script can be different
-  TOLGEE_SCRIPT_LOCATION: tolgee.sh
 
 jobs:
   fetch-translations:
@@ -26,7 +28,12 @@ jobs:
       - name: Get Translations
         run: |
           echo "Fetching translations from Tolgee..."
-          ./${{ env.TOLGEE_SCRIPT_LOCATION }}
+          if [[ ${{ inputs.TOLGEE_SCRIPT_LOCATION_DIR }} != "" ]]; then 
+            cd ${{ inputs.TOLGEE_SCRIPT_LOCATION_DIR }}
+            ./tolgee.sh
+          else 
+            ./tolgee.sh
+          fi
         env:
           TOLGEE_API_KEY: ${{ secrets.TOLGEE_API_KEY }}
           TOLGEE_PROJECT_ID: ${{ env.TOLGEE_PROJECT_ID }}
