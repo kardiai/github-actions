@@ -1,0 +1,84 @@
+name: Tag release and notify in slack
+
+on:
+  workflow_dispatch:
+    inputs:
+      new_tag:
+        required: true
+        type: string
+        description: "The new tag to create for the release (e.g., v1.0.1)"
+      base_tag:
+        required: true
+        type: string
+        description: "The tag to compare against for generating release notes (e.g., v1.0.0)"
+  workflow_call:
+    inputs:
+      new_tag:
+        required: true
+        type: string
+        description: "The new tag to create for the release (e.g., v1.0.1)"
+      base_tag:
+        required: true
+        type: string
+        description: "The tag to compare against for generating release notes (e.g., v1.0.0)"
+    outputs:
+      new_tag:
+        description: "Generated tag"
+        value: ${{ jobs.create-release-and-notify.outputs.new_tag }}
+
+jobs:
+  create-release-and-notify:
+    name: Create release and notify
+    runs-on: ubuntu-latest
+    outputs:
+      new_tag: ${{ steps.create_tag.outputs.new_tag }}
+    steps:
+      - uses: actions/checkout@v4.1.1
+        with:
+          fetch-depth: '0'
+
+      - name: Create Tag
+        id: create_tag
+        run: |
+          echo "new_tag=${{ inputs.new_tag }}" >> $GITHUB_OUTPUT
+          git tag ${{ inputs.new_tag }}
+          git push origin ${{ inputs.new_tag }}
+
+      - uses: actions/checkout@v4.1.1
+        with:
+          fetch-depth: '0'
+
+      - name: Get changes
+        env:
+          NEW_TAG: ${{ inputs.new_tag }}
+          BASE_TAG: ${{ inputs.base_tag }}
+        run: |
+          export CHANGES=$(git log --pretty="- %s" $BASE_TAG...$NEW_TAG)
+          printf "# 🎁 Release notes (\`$NEW_TAG\`)\n\n## Changes\n$CHANGES\n\n## Metadata\n\`\`\`\nThis version -------- $NEW_TAG\nPrevious version ---- $BASE_TAG\nTotal commits ------- $(echo "$CHANGES" | wc -l)\n\`\`\`\n" > RELEASE.md
+          cat RELEASE.md
+
+      - name: Read file contents
+        id: read_file
+        uses: andstor/file-reader-action@v1
+        with:
+          path: "RELEASE.md"
+
+      - name: Create a GitHub release
+        uses: ncipollo/release-action@v1
+        with:
+          tag: ${{ inputs.new_tag }}
+          name: Release ${{ inputs.new_tag }}
+          body: ${{ steps.read_file.outputs.contents }}
+
+      - name: Slack Notification
+        uses: rtCamp/action-slack-notify@v2.2.1
+        env:
+          SLACK_COLOR: ${{ job.status }} # or a specific color like 'good' or '#ff00ff'
+          SLACK_MESSAGE: ${{ steps.read_file.outputs.contents }}
+          SLACK_TITLE: RELEASE >> ${{ github.event.repository.name }}
+          SLACK_USERNAME: 'release-bot'
+          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK_RELEASES }}
+          MSG_MINIMAL: true
+          SLACK_FOOTER: 'Kardi AI Github action release'
+        with:
+          message: ${{ env.CHANGES }}
