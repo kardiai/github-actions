@@ -10,6 +10,8 @@ on:
       image_label:
         required: true
         type: string
+      image_version:
+        type: string
       branch:
         type: string
 
@@ -22,15 +24,23 @@ jobs:
       - name: Set full image tag
         id: tag
         run: |
-          INPUT_TAG="${{ inputs.image_tag }}"
-          if [[ "$INPUT_TAG" == v* ]]; then
-           IMAGE_TAG="kardiai/api:$INPUT_TAG"
-          else
-           TIMESTAMP=$(date +%Y%m%d-%H%M%S)
-           IMAGE_TAG="kardiai/api:$INPUT_TAG-$TIMESTAMP"
+          # If no version provided, use "unknown"
+          INPUT_VERSION="${{ inputs.input_version }}"
+          if [ -z "$INPUT_VERSION" ]; then
+            INPUT_VERSION="unknown"
           fi
-          echo "IMAGE_TAG=${IMAGE_TAG}" >> $GITHUB_ENV
-          echo "Using image tag: $IMAGE_TAG"
+          
+          INPUT_LABEL="${{ inputs.input_label }}"
+          # Append timestamp if it does NOT start with v
+          if [[ "$INPUT_VERSION" == v* ]]; then
+            INPUT_VERSION="$INPUT_LABEL:$INPUT_VERSION"
+          else
+            TIMESTAMP=$(date +%Y%m%d-%H%M%S)
+            INPUT_VERSION="$INPUT_LABEL:$INPUT_VERSION-$TIMESTAMP"
+          fi
+          
+          echo "INPUT_VERSION=${INPUT_VERSION}" >> $GITHUB_ENV
+          echo "Using image tag: $INPUT_VERSION"
 
       - name: Docker Login
         # You may pin to the exact commit or the version.
@@ -49,5 +59,5 @@ jobs:
           tags: ${{ inputs.image_tag }}
           labels: ${{ inputs.image_label }}
           build-args: |
-            IMAGE_TAG=${{ env.IMAGE_TAG }}          
+            IMAGE_TAG=${{ env.INPUT_VERSION }}          
 
