@@ -25,7 +25,7 @@ jobs:
         id: tag
         run: |
           # If no version provided, use "unknown"
-          INPUT_VERSION="${{ inputs.input_version }}"
+          INPUT_VERSION="${{ inputs.image_version }}"
           if [ -z "$INPUT_VERSION" ]; then
             INPUT_VERSION="unknown"
           fi
