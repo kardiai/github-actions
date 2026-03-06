@@ -6,10 +6,16 @@ on:
       default_bump:
         required: true
         type: string
+    outputs:
+      new_tag:
+        description: "Generated tag"
+        value: ${{ jobs.get-version.outputs.new_tag }}
 
 jobs:
   get-version:
     runs-on: ubuntu-latest
+    outputs:
+      new_tag: ${{ steps.tag_version.outputs.new_tag }}
     steps:
       - uses: actions/checkout@v4
       - name: Bump version
