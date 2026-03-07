@@ -10,6 +10,8 @@ on:
       image_label:
         required: true
         type: string
+      image_version:
+        type: string
       branch:
         type: string
       java_version:
@@ -25,6 +27,28 @@ jobs:
 
     steps:
       - uses: actions/checkout@v3
+
+      - name: Set full image tag
+        id: tag
+        run: |
+          # If no version provided, use "unknown"
+          INPUT_VERSION="${{ inputs.image_version }}"
+          if [ -z "$INPUT_VERSION" ]; then
+            INPUT_VERSION="unknown"
+          fi
+          
+          INPUT_LABEL="${{ inputs.image_label }}"
+          # Append timestamp if it does NOT start with v
+          if [[ "$INPUT_VERSION" == v* ]]; then
+            INPUT_VERSION="$INPUT_VERSION"
+          else
+            TIMESTAMP=$(date +%Y%m%d-%H%M%S)
+            INPUT_VERSION="$INPUT_LABEL:$INPUT_VERSION-$TIMESTAMP"
+          fi
+          
+          echo "INPUT_VERSION=${INPUT_VERSION}" >> $GITHUB_ENV
+          echo "Using image tag: $INPUT_VERSION"
+
       - name: Set up JDK
         uses: actions/setup-java@v3
         with:
@@ -32,6 +56,9 @@ jobs:
           distribution: 'temurin'
           server-id: github # Value of the distributionManagement/repository/id field of the pom.xml
           settings-path: ${{ github.workspace }} # location for the settings.xml file
+
+      - name: Set POM version
+        run: mvn -B versions:set -DnewVersion="${{ env.INPUT_VERSION }}" --file pom.xml
 
       - name: Build with Maven
         run: mvn -B package --file pom.xml
