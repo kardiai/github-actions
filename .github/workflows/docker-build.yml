@@ -30,13 +30,12 @@ jobs:
             INPUT_VERSION="unknown"
           fi
           
-          INPUT_LABEL="${{ inputs.image_label }}"
           # Append timestamp if it does NOT start with v
           if [[ "$INPUT_VERSION" == v* ]]; then
             INPUT_VERSION="$INPUT_VERSION"
           else
             TIMESTAMP=$(date +%Y%m%d-%H%M%S)
-            INPUT_VERSION="$INPUT_LABEL:$INPUT_VERSION-$TIMESTAMP"
+            INPUT_VERSION="$INPUT_VERSION-$TIMESTAMP"
           fi
           
           echo "INPUT_VERSION=${INPUT_VERSION}" >> $GITHUB_ENV
