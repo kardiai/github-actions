@@ -37,7 +37,6 @@ jobs:
             INPUT_VERSION="unknown"
           fi
           
-          INPUT_LABEL="${{ inputs.image_label }}"
           # Append timestamp if it does NOT start with v
           if [[ "$INPUT_VERSION" == v* ]]; then
             INPUT_VERSION="$INPUT_VERSION"
