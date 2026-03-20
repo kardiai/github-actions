@@ -67,4 +67,5 @@ jobs:
           labels: ${{ inputs.image_label }}
           build-args: |
             IMAGE_VERSION=${{ env.INPUT_VERSION }}          
+          secrets: |
             GIT_TOKEN=${{ steps.app-token.outputs.token }}
