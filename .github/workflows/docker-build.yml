@@ -54,8 +54,8 @@ jobs:
         id: app-token
         uses: actions/create-github-app-token@v3
         with:
-          app-id: ${{ secrets.PIP_APP_ID }}
-          private-key: ${{ secrets.PIP_APP_PRIVATE_KEY }}
+          app-id: ${{ secrets.PYTHON_LIBRARY_APP_ID }}
+          private-key: ${{ secrets.PYTHON_LIBRARY_ACCESS_KEY }}
           owner: ${{ github.repository_owner }}
 
       - name: Build and push Docker image
