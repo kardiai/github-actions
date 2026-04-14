@@ -1,0 +1,29 @@
+name: Build Private Wheels
+description: Parse requirements for git+ssh:// deps, clone via HTTPS and build wheels
+
+inputs:
+  requirements-file:
+    description: Path to requirements file
+    required: true
+  output-dir:
+    description: Output directory for built wheels
+    required: false
+    default: vendor
+  git-token:
+    description: GitHub token for cloning private repos
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Install uv
+      uses: astral-sh/setup-uv@v6
+
+    - name: Build private wheels
+      shell: bash
+      env:
+        GIT_TOKEN: ${{ inputs.git-token }}
+      run: |
+        python ${{ github.action_path }}/build_private_wheels.py \
+          "${{ inputs.requirements-file }}" \
+          "${{ inputs.output-dir }}"
