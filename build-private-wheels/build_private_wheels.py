@@ -6,15 +6,19 @@ clone them via HTTPS with a token, and build wheels using uv.
 
 import os
 import re
-import shutil
 import subprocess
 import sys
 import tempfile
 from pathlib import Path
 
-# Pattern: package @ git+ssh://git@github.com/org/repo@ref
+# Pattern examples:
+#   package @ git+ssh://git@github.com/org/repo@ref
+#   package @ git+ssh://git@github.com/org/repo.git@ref#subdirectory=packages/pkg
 GIT_SSH_PATTERN = re.compile(
-    r"^[^#]*@\s*git\+ssh://git@github\.com/(?P<org>[^/]+)/(?P<repo>[^@]+)@(?P<ref>.+)$"
+    r"^(?P<package>[A-Za-z0-9_.-]+)\s*@\s*"
+    r"git\+ssh://git@github\.com/"
+    r"(?P<org>[^/]+)/(?P<repo>[^@/#]+?)(?:\.git)?@(?P<ref>[^#\s]+)"
+    r"(?:#(?P<fragment>\S+))?$"
 )
 
 
@@ -27,13 +31,28 @@ def parse_git_dependencies(requirements_path: Path) -> list[dict]:
             continue
         match = GIT_SSH_PATTERN.match(line)
         if match:
-            deps.append(match.groupdict())
+            dep = match.groupdict()
+            fragment = dep.pop("fragment")
+            dep["subdirectory"] = None
+
+            if fragment:
+                for key_value in fragment.split("&"):
+                    if not key_value or "=" not in key_value:
+                        continue
+                    key, value = key_value.split("=", 1)
+                    if key == "subdirectory":
+                        dep["subdirectory"] = value
+                        break
+
+            deps.append(dep)
     return deps
 
 
 def build_wheel(dep: dict, token: str, output_dir: Path) -> None:
     """Clone a repo and build a wheel from it."""
+    package = dep["package"]
     org, repo, ref = dep["org"], dep["repo"], dep["ref"]
+    subdirectory = dep.get("subdirectory")
     clone_url = f"https://x-access-token:{token}@github.com/{org}/{repo}.git"
 
     with tempfile.TemporaryDirectory() as tmp_dir:
@@ -46,10 +65,23 @@ def build_wheel(dep: dict, token: str, output_dir: Path) -> None:
 
         # Extract version from ref (e.g. "v0.1.0" -> "0.1.0")
         version = ref.lstrip("v")
+        build_path = clone_path / subdirectory if subdirectory else clone_path
 
-        print(f"===> Building wheel for {repo} (version: {version})")
+        if not build_path.exists():
+            raise FileNotFoundError(
+                f"Build path not found for {package}: {build_path} (subdirectory={subdirectory})"
+            )
+
+        print(
+            f"===> Building wheel for {package} from "
+            f"{subdirectory or '.'} (version: {version})"
+        )
         # Write version directly into pyproject.toml to override setuptools-scm
-        pyproject_path = clone_path / "pyproject.toml"
+        pyproject_path = build_path / "pyproject.toml"
+        if not pyproject_path.exists():
+            raise FileNotFoundError(
+                f"pyproject.toml not found for {package} at {pyproject_path}"
+            )
         pyproject_content = pyproject_path.read_text()
 
         # Replace dynamic version with static version
@@ -60,10 +92,10 @@ def build_wheel(dep: dict, token: str, output_dir: Path) -> None:
         pyproject_path.write_text(pyproject_content)
 
         subprocess.run(
-            ["uv", "build", "--wheel", "--out-dir", str(output_dir), str(clone_path)],
+            ["uv", "build", "--wheel", "--out-dir", str(output_dir), str(build_path)],
             check=True,
         )
-        print(f"===> Done: {repo}")
+        print(f"===> Done: {package}")
 
 
 def main() -> None:
@@ -93,7 +125,9 @@ def main() -> None:
 
     print(f"Found {len(deps)} private git dependencies:")
     for dep in deps:
-        print(f"  - {dep['org']}/{dep['repo']} @ {dep['ref']}")
+        subdir = dep.get("subdirectory")
+        subdir_suffix = f" (subdirectory={subdir})" if subdir else ""
+        print(f"  - {dep['package']}: {dep['org']}/{dep['repo']} @ {dep['ref']}{subdir_suffix}")
 
     for dep in deps:
         build_wheel(dep, token, output_dir)
