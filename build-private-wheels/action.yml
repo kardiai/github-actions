@@ -26,4 +26,5 @@ runs:
       run: |
         python ${{ github.action_path }}/build_private_wheels.py \
           "${{ inputs.requirements-file }}" \
-          "${{ inputs.output-dir }}"
+          "${{ inputs.output-dir }}" || exit 1
+        ls -la "${{ inputs.output-dir }}"
