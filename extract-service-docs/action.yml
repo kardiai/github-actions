@@ -39,12 +39,11 @@ runs:
       env:
         ANTHROPIC_API_KEY: ${{ inputs.anthropic_api_key }}
       run: |
-        claude \
+        stdbuf -oL claude \
           --model claude-sonnet-4-6 \
           --max-turns "${{ steps.scan.outputs.max_turns }}" \
           --mcp-config "${{ github.action_path }}/graphify-mcp.json" \
-          --allowedTools "Bash(git diff*),Read,Write,mcp__graphify__graph_stats,mcp__graphify__god_nodes,mcp__graphify__query_graph,mcp__graphify__get_community" \
-          --verbose \
+          --allowedTools "Bash(git diff*),Bash(echo*),Read,Write,mcp__graphify__graph_stats,mcp__graphify__god_nodes,mcp__graphify__query_graph,mcp__graphify__get_community" \
           -p "Read ${{ github.action_path }}/extraction_agent.md and follow the instructions exactly."
 
     - name: Write extraction metadata
