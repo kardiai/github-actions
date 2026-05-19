@@ -23,9 +23,11 @@ runs:
           exit 1
         fi
 
-    - name: Install graphify
+    - name: Install dependencies
       shell: bash
-      run: pip install graphifyy mcp pyyaml
+      run: |
+        pip install graphifyy mcp pyyaml
+        npm install -g @anthropic-ai/claude-code
 
     - name: "Phase 1: Scan"
       id: scan
@@ -33,15 +35,19 @@ runs:
       run: python3 "${{ github.action_path }}/scan.py"
 
     - name: "Phase 2: AI Extraction"
-      uses: anthropics/claude-code-action@v1
-      with:
-        anthropic_api_key: ${{ inputs.anthropic_api_key }}
-        claude_args: "--model claude-sonnet-4-6 --max-turns ${{ steps.scan.outputs.max_turns }} --mcp-config ${{ github.action_path }}/graphify-mcp.json"
-        prompt: |
-          Read ${{ github.action_path }}/extraction_agent.md for your instructions.
-          Read .extraction/config.yaml for service configuration.
-          Read README.md for business context and glossary.
-          Generate the extraction output files in .extraction/output/ following the agent instructions exactly.
+      shell: bash
+      env:
+        ANTHROPIC_API_KEY: ${{ inputs.anthropic_api_key }}
+      run: |
+        claude \
+          --model claude-sonnet-4-6 \
+          --max-turns "${{ steps.scan.outputs.max_turns }}" \
+          --mcp-config "${{ github.action_path }}/graphify-mcp.json" \
+          --allowedTools "Bash,Read,Write,mcp__graphify__graph_stats,mcp__graphify__god_nodes,mcp__graphify__query_graph,mcp__graphify__get_community" \
+          -p "Read ${{ github.action_path }}/extraction_agent.md for your instructions.
+        Read .extraction/config.yaml for service configuration.
+        Read README.md for business context and glossary.
+        Generate the extraction output files in .extraction/output/ following the agent instructions exactly."
 
     - name: Write extraction metadata
       shell: bash
