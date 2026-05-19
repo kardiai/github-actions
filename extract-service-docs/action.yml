@@ -25,7 +25,7 @@ runs:
 
     - name: Install graphify
       shell: bash
-      run: pip install graphifyy mcp
+      run: pip install graphifyy mcp pyyaml
 
     - name: "Phase 1: Scan"
       id: scan
