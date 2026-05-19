@@ -43,11 +43,9 @@ runs:
           --model claude-sonnet-4-6 \
           --max-turns "${{ steps.scan.outputs.max_turns }}" \
           --mcp-config "${{ github.action_path }}/graphify-mcp.json" \
-          --allowedTools "Bash,Read,Write,mcp__graphify__graph_stats,mcp__graphify__god_nodes,mcp__graphify__query_graph,mcp__graphify__get_community" \
-          -p "Read ${{ github.action_path }}/extraction_agent.md for your instructions.
-        Read .extraction/config.yaml for service configuration.
-        Read README.md for business context and glossary.
-        Generate the extraction output files in .extraction/output/ following the agent instructions exactly."
+          --allowedTools "Bash(git diff*),Read,Write,mcp__graphify__graph_stats,mcp__graphify__god_nodes,mcp__graphify__query_graph,mcp__graphify__get_community" \
+          --verbose \
+          -p "Read ${{ github.action_path }}/extraction_agent.md and follow the instructions exactly."
 
     - name: Write extraction metadata
       shell: bash
