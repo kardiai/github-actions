@@ -28,6 +28,7 @@ runs:
       run: |
         pip install graphifyy mcp pyyaml
         npm install -g @anthropic-ai/claude-code
+        sudo apt-get install -y expect
 
     - name: "Phase 1: Scan"
       id: scan
@@ -39,7 +40,7 @@ runs:
       env:
         ANTHROPIC_API_KEY: ${{ inputs.anthropic_api_key }}
       run: |
-        stdbuf -oL claude \
+        unbuffer claude \
           --model claude-sonnet-4-6 \
           --max-turns "${{ steps.scan.outputs.max_turns }}" \
           --mcp-config "${{ github.action_path }}/graphify-mcp.json" \
