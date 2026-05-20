@@ -626,6 +626,35 @@ Extract:
 - Internal shared libraries
 - Subprocess invocations
 
+## Final Summary
+
+After writing all output files, print a summary in this exact format:
+
+```
+## Extraction Summary
+
+**Mode:** [First run | Incremental re-extraction]
+**Git diff:** [Not applicable (first run) | No changes | Changes in: <list of changed files>]
+**Graphify:** [MCP tools used | GRAPH_REPORT.md fallback]
+
+[If incremental: briefly describe what changed — which files were corrected, added, or removed and why]
+
+| File | Contents |
+|---|---|
+| `capabilities.yaml` | N capabilities, sorted ✓ |
+| `flows.yaml` | N flows, sorted ✓ |
+| `entities.yaml` | N entities, sorted ✓ |
+| `dependencies.yaml` | N dependencies, sorted ✓ |
+| `endpoints.yaml` | N endpoints (or "not generated") |
+| `pages.yaml` | N pages (or "not generated") |
+| `operations.yaml` | N operations (or "not generated") |
+| `diagrams/` | List diagram files generated |
+```
+
+Do NOT mention `meta.yaml` in the summary — it is managed by the CI pipeline, not by you.
+
+---
+
 ## Final Important Rule
 
 You are NOT writing documentation.
