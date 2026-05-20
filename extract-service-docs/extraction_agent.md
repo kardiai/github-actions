@@ -79,7 +79,8 @@ Optional files (generate only if applicable to this service):
 - `pages.yaml` — if `has_gui: true` in config.yaml
 - `operations.yaml` — if the service has operational workflows (migrations, scripts, scheduled maintenance)
 
-DO NOT generate:
+DO NOT generate or modify:
+- `meta.yaml` — this file is written by the CI pipeline after you finish; do not create or edit it
 - Markdown documentation
 - Prose explanations
 - Executive summaries
@@ -546,7 +547,11 @@ Before writing output, run all checks below. If any check fails, correct the aff
 
 7. **Write attribution** — For every capability that claims an internal module *writes* to a database or external system, verify that module is reachable from a live request path. Specifically: if the only call sites for that module are under `migration/`, `backfill/`, `scripts/`, `test/`, or similar non-request paths, the API does not perform those writes during normal operation. Remove the module from `source_files` and revise the description — the capability should describe what the API reads or serves, not what an offline process writes.
 
-8. **Endpoint coverage** — If `endpoints.yaml` was generated, every REST endpoint defined in controllers must have an entry in it. Every entry must have either a `capability_ref` or `flow_ref`. No endpoint may be left undocumented.
+8. **Endpoint coverage and accuracy** — If `endpoints.yaml` was generated:
+   - Every entry must correspond to a real route in a controller file — verify the HTTP method and path against the actual annotation in the code
+   - Every controller route must have an entry — no endpoint left undocumented
+   - Every entry must have either a `capability_ref` or `flow_ref`
+   - Do not invent endpoints that are not in the source code
 
 
 ---
