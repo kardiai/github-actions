@@ -416,7 +416,7 @@ Using the external calls found in source files:
 
 Using the capabilities, flows, and dependencies you extracted:
 
-Generate all required diagrams listed in the [Output: diagrams/*.d2](#output-diagramsd2) section. Do not skip any. Also generate optional diagrams if relevant to this service.
+Generate all required diagrams listed in the [Output: diagrams/*.d2](#output-diagramsd2) section. Do not skip any. Use judgment — also generate optional diagrams if relevant to this service.
 
 ### Step 8: Cross-reference and validate
 
