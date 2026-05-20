@@ -73,6 +73,10 @@ Generate EXACTLY these files in `.extraction/output/`:
 4. `dependencies.yaml`
 5. `diagrams/*.d2` (one or more D2 diagram files)
 
+Optional files (generate only if applicable to this service):
+- `endpoints.yaml` — if the service exposes a REST API
+- `operations.yaml` — if the service has operational workflows (migrations, scripts, scheduled maintenance)
+
 DO NOT generate:
 - Markdown documentation
 - Prose explanations
@@ -244,6 +248,54 @@ dependencies:
 
 ---
 
+## Output Schema: endpoints.yaml
+
+Document all REST endpoints exposed by the service. Generate this file only if the service has a REST API.
+
+```yaml
+endpoints:
+  - id: kebab-case-id                   # REQUIRED
+    method: POST                         # REQUIRED: GET | POST | PUT | DELETE | PATCH
+    path: /api/subscriptions/{id}        # REQUIRED: URL path
+    controller: SubscriptionController   # REQUIRED: controller class
+    description: |                       # REQUIRED: what this endpoint does
+      What this endpoint does.
+    capability_ref: subscription-mgmt    # OPTIONAL: capability ID handling this endpoint
+    flow_ref: normal-payment-flow        # OPTIONAL: flow ID if endpoint starts a flow
+    auth: required                       # OPTIONAL: required | public | admin
+```
+
+List every endpoint. For endpoints not covered by a main flow, link to the capability that handles them. Sort by `id`.
+
+---
+
+## Output Schema: operations.yaml
+
+Document operational workflows — how migrations run, how scripts are executed, scheduled maintenance. Focus on the mechanism and trigger, not on individual file contents. Generate this file only if the service has such workflows.
+
+```yaml
+operations:
+  - id: kebab-case-id                   # REQUIRED
+    name: Human Readable Name            # REQUIRED
+    type: migration                      # REQUIRED: migration | script | scheduled-job | cli | maintenance
+    description: |                       # REQUIRED: the mechanism — how it runs, who triggers it, what it affects
+      Description of how this operation works.
+    trigger: application-startup         # REQUIRED: application-startup | deployment | manual | scheduled | ci-cd
+    dependencies:                        # OPTIONAL: dependency IDs from dependencies.yaml
+      - postgresql
+    source_files:                        # OPTIONAL: entry point files only, not every migration file
+      - scripts/import.py
+```
+
+**Type values:**
+- `migration` — database schema changes (Flyway, Liquibase, manual SQL)
+- `script` — one-off or batch data scripts
+- `scheduled-job` — cron or timer-based background jobs outside the main flow
+- `cli` — command-line tools bundled with the service
+- `maintenance` — operational procedures (reindexing, cache warming, cleanup)
+
+---
+
 ## Output: diagrams/*.d2
 
 Generate D2 diagram source files. Create small, focused diagrams — NOT one giant diagram.
@@ -412,7 +464,29 @@ Using the external calls found in source files:
 6. Include database and internal library dependencies
 7. List required environment variables for each dependency
 
-### Step 7: Generate diagrams
+### Step 7: Extract endpoints
+
+If the service has a REST API, generate `endpoints.yaml`:
+
+1. Scan all controller files for route definitions (annotations, decorators, router registrations)
+2. Create one entry per endpoint
+3. Link each endpoint to its capability or flow via `capability_ref` or `flow_ref`
+4. Every endpoint must have an entry — no endpoint left undocumented
+
+If the service has no REST API (queue consumer, library, CLI tool), skip this step.
+
+### Step 7b: Extract operations
+
+If the service has migrations, scripts, or scheduled maintenance workflows, generate `operations.yaml`:
+
+1. Identify migration tooling (Flyway, Liquibase, manual SQL, Alembic, etc.) and document how migrations are executed and when
+2. Identify scripts or CLI tools bundled with the service
+3. Identify scheduled jobs that are not part of the main business flow
+4. For each, document the mechanism and trigger — not the file contents
+
+If the service has none of these, skip this step.
+
+### Step 8: Generate diagrams
 
 Using the capabilities, flows, and dependencies you extracted:
 
@@ -435,6 +509,9 @@ Before writing output, run all checks below. If any check fails, correct the aff
 6. **Flow actor vs capability source_files** — For every flow step that has a `capability_ref` and no `actor` field: the absence of an actor means an external system performs that action. If the referenced capability's `description` or `source_files` implies an internal module does that work, the capability is wrong. Correct it to reflect read or serving behaviour only. The flow's actor field (or lack of one) takes precedence over the capability description.
 
 7. **Write attribution** — For every capability that claims an internal module *writes* to a database or external system, verify that module is reachable from a live request path. Specifically: if the only call sites for that module are under `migration/`, `backfill/`, `scripts/`, `test/`, or similar non-request paths, the API does not perform those writes during normal operation. Remove the module from `source_files` and revise the description — the capability should describe what the API reads or serves, not what an offline process writes.
+
+8. **Endpoint coverage** — If `endpoints.yaml` was generated, every REST endpoint defined in controllers must have an entry in it. Every entry must have either a `capability_ref` or `flow_ref`. No endpoint may be left undocumented.
+
 
 ---
 
@@ -472,16 +549,26 @@ Bad examples:
 - DTO mapper
 - Validation helper
 
+**Notification and alerting services are always capabilities.** If the service sends Slack messages, emails, push notifications, or any other alert — that is a business operation and must appear as a capability (category: `monitoring`), regardless of whether it also appears as a dependency. The dependency entry captures the external system; the capability captures what the service does with it.
+
 ## Flow Detection Guidance
 
-Flows should represent ordered business or system interactions.
+Flows should represent ordered business or system interactions. **All flows are equally important** — a developer may need to understand an admin cancellation endpoint just as much as the main payment flow.
 
-Focus on:
+**Main business flows** — the primary processing paths the service was built for:
 - Request/data lifecycle
 - Domain workflows
 - Event propagation
 - Async processing chains
 - External integration sequences
+
+**Support and admin flows** — equally required, not optional:
+- Administrative operations (manual overrides, bulk actions, cancellations, grants)
+- Support workflows (refunds, status corrections, subscription adjustments)
+- Background/scheduled jobs that are not the main pipeline
+- Error recovery and retry paths
+
+If a group of related admin/support endpoints share a common subject (e.g., all subscription admin endpoints), create one flow covering them rather than one flow per endpoint. If an endpoint is a single self-contained action with no meaningful steps, document it as a capability trigger instead of a flow.
 
 ## Dependency Detection Guidance
 
