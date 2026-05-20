@@ -384,7 +384,12 @@ Run `git diff <commit> HEAD --stat` to get a summary of changed files, then
 `git diff <commit> HEAD -- <source_dirs>` (using `source_dirs` from `config.yaml`) to see
 the actual code changes since the last extraction.
 
-Use this diff to guide your extraction:
+**If the diff is empty**:
+- The existing output files are still accurate — do NOT regenerate them
+- Stop here and report: "No source changes since last extraction. Output is up to date."
+- Do not proceed to Steps 1–8
+
+**If the diff is non-empty**, use it to guide your extraction:
 - Files with changes → re-examine carefully, output may need updating
 - Files with no changes → existing output for those areas is likely still accurate
 - New files added → extract capabilities/entities they introduce

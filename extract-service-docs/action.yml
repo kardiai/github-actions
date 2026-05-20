@@ -54,7 +54,20 @@ runs:
           -p "Read ${{ github.action_path }}/extraction_agent.md and follow the instructions exactly." \
           | tee .extraction/agent-output.txt
 
+    - name: Check for output changes
+      id: check-changes
+      shell: bash
+      run: |
+        if git diff --quiet HEAD -- .extraction/output/ && \
+           ! git ls-files --others --exclude-standard .extraction/output/ | grep -q .; then
+          echo "changed=false" >> "$GITHUB_OUTPUT"
+          echo "::notice::No output changes detected — skipping PR creation."
+        else
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+        fi
+
     - name: Write extraction metadata
+      if: steps.check-changes.outputs.changed == 'true'
       shell: bash
       run: |
         mkdir -p .extraction/output
@@ -66,6 +79,7 @@ runs:
 
     - name: Build PR body
       id: pr-body
+      if: steps.check-changes.outputs.changed == 'true'
       shell: bash
       run: |
         {
@@ -80,6 +94,7 @@ runs:
 
     - name: Generate token for PR creation
       id: app-token
+      if: steps.check-changes.outputs.changed == 'true'
       uses: actions/create-github-app-token@v3
       with:
         app-id: ${{ inputs.doc_generator_app_id }}
@@ -87,6 +102,7 @@ runs:
         owner: ${{ github.repository_owner }}
 
     - name: Create PR with results
+      if: steps.check-changes.outputs.changed == 'true'
       uses: peter-evans/create-pull-request@v7
       with:
         token: ${{ steps.app-token.outputs.token }}
