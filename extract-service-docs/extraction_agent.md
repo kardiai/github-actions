@@ -42,7 +42,8 @@ Located at `.extraction/config.yaml`, this tells you:
 service_name: string       # Service identifier
 description: string        # One-line description
 language: string           # Programming language
-framework: string          # Web framework (or "none")
+frameworks: list           # Frameworks in use (e.g. spring-boot, thymeleaf, fastapi)
+has_gui: bool              # true if the service serves a user-facing GUI
 entry_points: list         # Main entry point files
 internal_packages: list    # Package prefixes that are internal (not PyPI)
 deprecated:                # Optional — files and capabilities to exclude entirely
@@ -75,6 +76,7 @@ Generate EXACTLY these files in `.extraction/output/`:
 
 Optional files (generate only if applicable to this service):
 - `endpoints.yaml` — if the service exposes a REST API
+- `pages.yaml` — if `has_gui: true` in config.yaml
 - `operations.yaml` — if the service has operational workflows (migrations, scripts, scheduled maintenance)
 
 DO NOT generate:
@@ -266,6 +268,29 @@ endpoints:
 ```
 
 List every endpoint. For endpoints not covered by a main flow, link to the capability that handles them. Sort by `id`.
+
+---
+
+## Output Schema: pages.yaml
+
+Document user-facing GUI pages. Generate only if `has_gui: true` in config.yaml.
+
+```yaml
+pages:
+  - id: kebab-case-id                   # REQUIRED
+    path: /payment                       # REQUIRED: URL path
+    controller: PageController           # REQUIRED: controller class
+    template: payment/home               # OPTIONAL: template name/path
+    description: |                       # REQUIRED: what the page displays and its purpose
+      What this page shows and what the user can do on it.
+    interactions:                        # OPTIONAL: user actions available on this page
+      - Select subscription plan
+      - Enter promo code
+    flow_ref: normal-payment-flow        # OPTIONAL: flow this page participates in
+    auth: required                       # OPTIONAL: required | public | admin
+```
+
+Sort by `id`.
 
 ---
 
@@ -474,6 +499,16 @@ If the service has a REST API, generate `endpoints.yaml`:
 4. Every endpoint must have an entry — no endpoint left undocumented
 
 If the service has no REST API (queue consumer, library, CLI tool), skip this step.
+
+### Step 7a: Extract pages
+
+If `has_gui: true` in config.yaml, generate `pages.yaml`:
+
+1. Scan controller files for HTML-returning routes (methods returning a template name or ModelAndView)
+2. For each page, identify the template, what data it displays, and what user interactions it supports
+3. Link to the flow the page participates in where applicable
+
+If `has_gui: false`, skip this step.
 
 ### Step 7b: Extract operations
 
