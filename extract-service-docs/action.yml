@@ -7,6 +7,12 @@ inputs:
   anthropic_api_key:
     description: Anthropic API key for the AI extraction step
     required: true
+  doc_generator_app_id:
+    description: GitHub App ID used to create the extraction PR
+    required: true
+  doc_generator_access_key:
+    description: GitHub App private key used to create the extraction PR
+    required: true
 
 runs:
   using: composite
@@ -57,9 +63,18 @@ runs:
           "$(git rev-parse --abbrev-ref HEAD)" \
           > .extraction/output/meta.yaml
 
+    - name: Generate token for PR creation
+      id: app-token
+      uses: actions/create-github-app-token@v3
+      with:
+        app-id: ${{ inputs.doc_generator_app_id }}
+        private-key: ${{ inputs.doc_generator_access_key }}
+        owner: ${{ github.repository_owner }}
+
     - name: Create PR with results
       uses: peter-evans/create-pull-request@v7
       with:
+        token: ${{ steps.app-token.outputs.token }}
         commit-message: "chore: update extraction metadata"
         branch: chore/extraction-update
         title: "chore: update extraction metadata"
