@@ -534,10 +534,11 @@ Before writing output, run all checks below. If any check fails, correct the aff
 **Structural checks**
 
 1. Every dependency ID referenced in capabilities or flows must exist in `dependencies.yaml`
-2. Every capability ID referenced in flow steps must exist in `capabilities.yaml`
-3. Every entity relationship target must exist in `entities.yaml`
-4. No duplicate IDs within any file
-5. All IDs are kebab-case
+2. Every `capability_ref` anywhere (flow steps, endpoints, pages) must exist in `capabilities.yaml` — not in `flows.yaml`
+3. Every `flow_ref` anywhere (endpoints, pages, flows) must exist in `flows.yaml` — not in `capabilities.yaml`
+4. Every entity relationship target must exist in `entities.yaml`
+5. No duplicate IDs within any file
+6. All IDs are kebab-case
 
 **Semantic checks**
 

@@ -51,7 +51,8 @@ runs:
           --max-turns "${{ steps.scan.outputs.max_turns }}" \
           --mcp-config "${{ github.action_path }}/graphify-mcp.json" \
           --allowedTools "Bash(git diff*),Read,Write,mcp__graphify__graph_stats,mcp__graphify__god_nodes,mcp__graphify__query_graph,mcp__graphify__get_community" \
-          -p "Read ${{ github.action_path }}/extraction_agent.md and follow the instructions exactly."
+          -p "Read ${{ github.action_path }}/extraction_agent.md and follow the instructions exactly." \
+          | tee .extraction/agent-output.txt
 
     - name: Write extraction metadata
       shell: bash
@@ -62,6 +63,20 @@ runs:
           "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
           "$(git rev-parse --abbrev-ref HEAD)" \
           > .extraction/output/meta.yaml
+
+    - name: Build PR body
+      id: pr-body
+      shell: bash
+      run: |
+        {
+          echo 'body<<EOF'
+          echo 'Automated extraction of architecture metadata.'
+          echo ''
+          echo '---'
+          echo ''
+          cat .extraction/agent-output.txt
+          echo 'EOF'
+        } >> "$GITHUB_OUTPUT"
 
     - name: Generate token for PR creation
       id: app-token
@@ -78,9 +93,6 @@ runs:
         commit-message: "chore: update extraction metadata"
         branch: chore/extraction-update
         title: "chore: update extraction metadata"
-        body: |
-          Automated extraction of architecture metadata.
-
-          Review the changes in `.extraction/output/` before merging.
+        body: ${{ steps.pr-body.outputs.body }}
         add-paths: .extraction/output/
         delete-branch: true
