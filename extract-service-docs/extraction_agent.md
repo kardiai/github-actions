@@ -330,9 +330,9 @@ Generate D2 diagram source files. Create small, focused diagrams — NOT one gia
 - `processing-flow.d2` — main business flow as a sequence
 - `dependencies.d2` — external dependency graph
 
-**Optional diagrams** (create if relevant):
-- `data-flow.d2` — how data moves through the system
-- `error-flow.d2` — error handling paths
+**Optional diagrams** — generate when the criterion is met:
+- `data-flow.d2` — generate if the service transforms or routes data through 3 or more external systems, or if data changes shape significantly between input and output (e.g. raw file → processed records → notifications)
+- `error-flow.d2` — generate if the service has distinct error handling paths with different outcomes (e.g. retry vs. dead-letter vs. notify), not just a single generic exception handler
 
 **D2 syntax rules:**
 ```d2
@@ -525,7 +525,7 @@ If the service has none of these, skip this step.
 
 Using the capabilities, flows, and dependencies you extracted:
 
-Generate all required diagrams listed in the [Output: diagrams/*.d2](#output-diagramsd2) section. Do not skip any. Use judgment — also generate optional diagrams if relevant to this service.
+Generate all required diagrams. For optional diagrams, apply the criteria in the [Output: diagrams/*.d2](#output-diagramsd2) section — generate each one if its criterion is met.
 
 ### Step 8: Cross-reference and validate
 
