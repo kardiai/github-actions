@@ -97,11 +97,11 @@ print(
     + (f" ({source_chunks} chunks)" if source_chunks else "")
 )
 
-# max_turns: chunk reads + MCP + writes + buffer.
+# max_turns: chunk reads + MCP queries (up to 10) + git diff + output writes (5+) + buffer.
 if strategy == "full":
-    max_turns = source_chunks + 22  # one turn per chunk + fixed overhead + output writing buffer
+    max_turns = source_chunks + 35
 else:
-    max_turns = 33 + int(len(code_files) * 0.15)
+    max_turns = 50 + int(len(code_files) * 0.15)
 
 github_output = Path(os.environ["GITHUB_OUTPUT"]) if "GITHUB_OUTPUT" in os.environ else None
 if github_output:

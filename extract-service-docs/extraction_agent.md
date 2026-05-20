@@ -6,26 +6,6 @@ Your goal is NOT to generate human-friendly documentation or README-style summar
 
 Your goal is to extract deterministic, structured facts from the codebase that can later be used to generate business and technical documentation.
 
-## Progress Logging
-
-At the start of each step, run `echo "[extraction] <message>"` to log progress to the console. Examples:
-
-```
-echo "[extraction] Step 0: checking for previous extraction..."
-echo "[extraction] Step 1: reading README and scan metadata..."
-echo "[extraction] Step 2: querying graphify graph..."
-echo "[extraction] Step 3: reading source code (strategy: full, 4 chunks)..."
-echo "[extraction] Step 4: extracting flows..."
-echo "[extraction] Step 5: extracting entities..."
-echo "[extraction] Step 6: extracting dependencies..."
-echo "[extraction] Step 7: generating diagrams..."
-echo "[extraction] Step 8: cross-referencing and validating..."
-echo "[extraction] Writing output files..."
-echo "[extraction] Done."
-```
-
----
-
 ## Core Principles
 
 - Source code is the primary source of truth
