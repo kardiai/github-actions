@@ -380,9 +380,9 @@ commit: "abc123..."
 extracted_at: "2026-01-15T10:30:00Z"
 ```
 
-Run `git diff <commit> HEAD --stat` to get a summary of changed files, then
-`git diff <commit> HEAD -- <source_dirs>` (using `source_dirs` from `config.yaml`) to see
-the actual code changes since the last extraction.
+Run `git diff <commit> HEAD -- <source_dirs>` (using `source_dirs` from `config.yaml`) to see
+the actual source code changes since the last extraction. Always use `-- <source_dirs>` to
+exclude extraction output, CI configs, and other non-source files from the diff.
 
 **If the diff is empty**:
 - STOP immediately — do NOT proceed to Steps 1–8, do NOT read source files, do NOT regenerate any output

@@ -35,6 +35,13 @@ runs:
         pip install graphifyy mcp pyyaml
         npm install -g @anthropic-ai/claude-code
 
+    - name: Fetch full git history
+      shell: bash
+      run: |
+        if git rev-parse --is-shallow-repository | grep -q true; then
+          git fetch --unshallow
+        fi
+
     - name: "Phase 1: Scan"
       id: scan
       shell: bash
@@ -53,6 +60,13 @@ runs:
           --allowedTools "Bash(git diff*),Read,Write,mcp__graphify__graph_stats,mcp__graphify__god_nodes,mcp__graphify__query_graph,mcp__graphify__get_community" \
           -p "Read ${{ github.action_path }}/extraction_agent.md and follow the instructions exactly." \
           | tee .extraction/agent-output.txt
+
+    - name: Publish agent summary
+      shell: bash
+      run: |
+        if [[ -f .extraction/agent-output.txt ]]; then
+          cat .extraction/agent-output.txt >> "$GITHUB_STEP_SUMMARY"
+        fi
 
     - name: Check for output changes
       id: check-changes
