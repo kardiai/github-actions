@@ -265,6 +265,7 @@ endpoints:
       What this endpoint does.
     capability_ref: subscription-mgmt    # OPTIONAL: capability ID handling this endpoint
     flow_ref: normal-payment-flow        # OPTIONAL: flow ID if endpoint starts a flow
+    operation_ref: tsdb-migration        # OPTIONAL: operation ID if endpoint triggers an operation
     auth: required                       # OPTIONAL: required | public | admin
 ```
 
@@ -501,7 +502,7 @@ If the service has a REST API, generate `endpoints.yaml`:
 
 1. Scan all controller files for route definitions (annotations, decorators, router registrations)
 2. Create one entry per endpoint
-3. Link each endpoint to its capability or flow via `capability_ref` or `flow_ref`
+3. Link each endpoint to its capability, flow, or operation via `capability_ref`, `flow_ref`, or `operation_ref`
 4. Every endpoint must have an entry — no endpoint left undocumented
 
 If the service has no REST API (queue consumer, library, CLI tool), skip this step.
@@ -542,6 +543,7 @@ Before writing output, run all checks below. If any check fails, correct the aff
 1. Every dependency ID referenced in capabilities or flows must exist in `dependencies.yaml`
 2. Every `capability_ref` anywhere (flow steps, endpoints, pages) must exist in `capabilities.yaml` — not in `flows.yaml`
 3. Every `flow_ref` anywhere (endpoints, pages, flows) must exist in `flows.yaml` — not in `capabilities.yaml`
+4. Every `operation_ref` in `endpoints.yaml` must exist in `operations.yaml` — not in `flows.yaml`
 4. Every entity relationship target must exist in `entities.yaml`
 5. No duplicate IDs within any file
 6. All IDs are kebab-case
@@ -555,7 +557,7 @@ Before writing output, run all checks below. If any check fails, correct the aff
 8. **Endpoint coverage and accuracy** — If `endpoints.yaml` was generated:
    - Every entry must correspond to a real route in a controller file — verify the HTTP method and path against the actual annotation in the code
    - Every controller route must have an entry — no endpoint left undocumented
-   - Every entry must have either a `capability_ref` or `flow_ref`
+   - Every entry must have at least one of: `capability_ref`, `flow_ref`, or `operation_ref`
    - Do not invent endpoints that are not in the source code
 
 
