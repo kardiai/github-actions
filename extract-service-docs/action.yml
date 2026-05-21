@@ -73,25 +73,7 @@ runs:
           -p "Read ${{ github.action_path }}/extraction_agent.md and follow the instructions exactly." \
           | tee .extraction/agent-output.txt
 
-    - name: Validate cross-references
-      id: validate
-      shell: bash
-      run: |
-        if python3 "${{ github.action_path }}/validate.py" 2>&1 | tee .extraction/validation-errors.txt; then
-          echo "valid=true" >> "$GITHUB_OUTPUT"
-        else
-          echo "valid=false" >> "$GITHUB_OUTPUT"
-        fi
-
-    - name: Publish validation results
-      if: steps.validate.outputs.valid == 'false'
-      shell: bash
-      run: |
-        echo "### Cross-reference validation errors" >> "$GITHUB_STEP_SUMMARY"
-        cat .extraction/validation-errors.txt >> "$GITHUB_STEP_SUMMARY"
-
-    - name: "Phase 2b: Fix cross-references"
-      if: steps.validate.outputs.valid == 'false'
+    - name: "Phase 3: Validate and fix output"
       shell: bash
       env:
         ANTHROPIC_API_KEY: ${{ inputs.anthropic_api_key }}
@@ -99,9 +81,13 @@ runs:
       run: |
         claude \
           --model claude-sonnet-4-6 \
-          --max-turns 15 \
+          --max-turns 20 \
           --allowedTools "Read,Write,Edit" \
-          -p "Read .extraction/validation-errors.txt for a list of cross-reference errors in .extraction/output/. Each error shows the source file, the field with the broken ID, and which target file the ID should exist in. Fix each error by reading the target file to find the correct ID, then editing the source file to replace the broken ID. Only fix the listed errors — do not change any other content." \
+          -p "Read and validate all files in .extraction/output/. Check for and fix:
+        1. Broken cross-references — every ID in capability_refs, flow_refs, operation_refs (endpoints.yaml, pages.yaml) must exist in capabilities.yaml, flows.yaml, or operations.yaml respectively; every capability_ref in flow steps must exist in capabilities.yaml; every dependency ID in capabilities and flows must exist in dependencies.yaml
+        2. Entity relationship targets — every target in entities.yaml relationships must exist in entities.yaml
+
+        Read the affected files, fix all issues found, and report what was changed. If everything is valid, say so." \
           | tee -a .extraction/agent-output.txt
 
     - name: Publish agent summary
