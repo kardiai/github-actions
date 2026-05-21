@@ -385,15 +385,15 @@ Run `git diff <commit> HEAD --stat` to get a summary of changed files, then
 the actual code changes since the last extraction.
 
 **If the diff is empty**:
-- The existing output files are still accurate — do NOT regenerate them
-- Stop here and report: "No source changes since last extraction. Output is up to date."
-- Do not proceed to Steps 1–8
+- STOP immediately — do NOT proceed to Steps 1–8, do NOT read source files, do NOT regenerate any output
+- Output the Final Summary with `**Git diff:** No changes` and nothing else
 
-**If the diff is non-empty**, use it to guide your extraction:
-- Files with changes → re-examine carefully, output may need updating
-- Files with no changes → existing output for those areas is likely still accurate
-- New files added → extract capabilities/entities they introduce
-- Files deleted → remove capabilities/entities they exclusively implemented
+**If the diff is non-empty**:
+- Read the existing output files in `.extraction/output/`
+- Identify which capabilities, flows, entities, endpoints, or operations are implemented in the changed source files
+- Update ONLY those specific entries — do NOT rewrite or regenerate entries unaffected by the diff
+- New files added → add new entries they introduce
+- Files deleted → remove entries they exclusively implemented
 
 **If it does not exist** (first run): proceed normally, no diff is needed.
 
@@ -628,30 +628,30 @@ Extract:
 
 ## Final Summary
 
-After writing all output files, print a summary in this exact format:
+Your last action must always be to print the summary below. Use EXACTLY this format — no other structure, no additional sections, no deviations.
 
 ```
 ## Extraction Summary
 
 **Mode:** [First run | Incremental re-extraction]
-**Git diff:** [Not applicable (first run) | No changes | Changes in: <list of changed files>]
+**Git diff:** [Not applicable (first run) | No changes | Changes in: file1.py, file2.py]
 **Graphify:** [MCP tools used | GRAPH_REPORT.md fallback]
 
-[If incremental: briefly describe what changed — which files were corrected, added, or removed and why]
+[Incremental only: one paragraph describing what was changed and why]
 
 | File | Contents |
 |---|---|
-| `capabilities.yaml` | N capabilities, sorted ✓ |
-| `flows.yaml` | N flows, sorted ✓ |
-| `entities.yaml` | N entities, sorted ✓ |
-| `dependencies.yaml` | N dependencies, sorted ✓ |
+| `capabilities.yaml` | N capabilities |
+| `flows.yaml` | N flows |
+| `entities.yaml` | N entities |
+| `dependencies.yaml` | N dependencies |
 | `endpoints.yaml` | N endpoints (or "not generated") |
 | `pages.yaml` | N pages (or "not generated") |
 | `operations.yaml` | N operations (or "not generated") |
-| `diagrams/` | List diagram files generated |
+| `diagrams/` | architecture.d2, processing-flow.d2, ... |
 ```
 
-Do NOT mention `meta.yaml` in the summary — it is managed by the CI pipeline, not by you.
+Do NOT mention `meta.yaml`. Do NOT add sections outside this format.
 
 ---
 
