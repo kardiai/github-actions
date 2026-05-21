@@ -138,6 +138,7 @@ runs:
         body: ${{ steps.pr-body.outputs.body }}
         add-paths: .extraction/output/
         delete-branch: true
+        reviewers: ${{ github.actor }}
 
     - name: Add PR link to summary
       if: steps.create-pr.outputs.pull-request-url != ''
