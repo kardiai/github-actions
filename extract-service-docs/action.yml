@@ -128,7 +128,7 @@ runs:
 
     - name: Create PR with results
       if: steps.check-changes.outputs.changed == 'true'
-      uses: peter-evans/create-pull-request@v7
+      uses: peter-evans/create-pull-request@v8
       with:
         token: ${{ steps.app-token.outputs.token }}
         commit-message: "chore: update extraction metadata"
