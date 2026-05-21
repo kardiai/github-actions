@@ -43,10 +43,11 @@ runs:
       if: inputs.force_regenerate == 'true'
       shell: bash
       run: |
-        rm -f .extraction/output/meta.yaml
-        echo "::notice::Force regenerate enabled — previous extraction state cleared."
+        rm -rf .extraction/output/
+        echo "::notice::Force regenerate enabled — previous extraction output cleared."
 
     - name: Fetch full git history
+      if: inputs.force_regenerate == 'false'
       shell: bash
       run: |
         if git rev-parse --is-shallow-repository | grep -q true; then
@@ -71,6 +72,37 @@ runs:
           --allowedTools "Bash(git diff*),Read,Write,mcp__graphify__graph_stats,mcp__graphify__god_nodes,mcp__graphify__query_graph,mcp__graphify__get_community" \
           -p "Read ${{ github.action_path }}/extraction_agent.md and follow the instructions exactly." \
           | tee .extraction/agent-output.txt
+
+    - name: Validate cross-references
+      id: validate
+      shell: bash
+      run: |
+        if python3 "${{ github.action_path }}/validate.py" 2>&1 | tee .extraction/validation-errors.txt; then
+          echo "valid=true" >> "$GITHUB_OUTPUT"
+        else
+          echo "valid=false" >> "$GITHUB_OUTPUT"
+        fi
+
+    - name: Publish validation results
+      if: steps.validate.outputs.valid == 'false'
+      shell: bash
+      run: |
+        echo "### Cross-reference validation errors" >> "$GITHUB_STEP_SUMMARY"
+        cat .extraction/validation-errors.txt >> "$GITHUB_STEP_SUMMARY"
+
+    - name: "Phase 2b: Fix cross-references"
+      if: steps.validate.outputs.valid == 'false'
+      shell: bash
+      env:
+        ANTHROPIC_API_KEY: ${{ inputs.anthropic_api_key }}
+        NO_COLOR: "1"
+      run: |
+        claude \
+          --model claude-sonnet-4-6 \
+          --max-turns 15 \
+          --allowedTools "Read,Write,Edit" \
+          -p "Read .extraction/validation-errors.txt for a list of cross-reference errors in .extraction/output/. Each error shows the source file, the field with the broken ID, and which target file the ID should exist in. Fix each error by reading the target file to find the correct ID, then editing the source file to replace the broken ID. Only fix the listed errors — do not change any other content." \
+          | tee -a .extraction/agent-output.txt
 
     - name: Publish agent summary
       shell: bash

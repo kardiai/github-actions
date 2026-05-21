@@ -16,7 +16,7 @@ Your goal is to extract deterministic, structured facts from the codebase that c
 - Prefer explicit relationships over assumptions
 - Focus on business capabilities rather than low-level implementation details
 - Ignore dead code and unused files if identifiable
-- README or markdown documentation must NEVER override observable behavior in code
+- README or Markdown documentation must NEVER override observable behavior in code
 
 ## Input
 
@@ -97,7 +97,7 @@ All output must be:
 - **Factual**: every string value must be traceable to code behavior
 - **Cross-referenced**: IDs referenced across files must exist in their source file
 
-Use block scalars (`|`) for multi-line description fields. Use kebab-case for all `id` fields.
+Use block scalars (`|`) for multi-line description fields. Use kebab-case for all `id` fields. Quote any single-line string value that contains a colon (e.g. `description: "Actions: A, B, C"`) — unquoted colons break YAML parsing.
 
 ---
 
@@ -159,14 +159,11 @@ flows:
       What this flow accomplishes.
     trigger: New measurement ZIP in S3   # OPTIONAL: what starts this flow
     steps:
-      - order: 1                         # REQUIRED: sequential position
-        action: Download file from S3    # REQUIRED: what happens
-        actor: app/run.py               # OPTIONAL: module or system
-        input: S3 file key              # OPTIONAL
-        output: Local ZIP file          # OPTIONAL
-        capability_ref: s3-polling      # OPTIONAL: capability ID
-        error_handling: Move to failed  # OPTIONAL
-        condition: null                 # OPTIONAL: conditional logic
+      # Simple form — just the action as a string:
+      - Download file from S3
+      # Extended form — when linking to a capability:
+      - action: Trigger AI inference     # REQUIRED in extended form
+        capability_ref: ai-inference     # OPTIONAL: capability ID
     error_flow: error-handling-flow     # OPTIONAL: reference to error flow ID
     dependencies:                        # OPTIONAL: dependency IDs
       - aws-s3-user-data
@@ -263,9 +260,12 @@ endpoints:
     controller: SubscriptionController   # REQUIRED: controller class
     description: |                       # REQUIRED: what this endpoint does
       What this endpoint does.
-    capability_ref: subscription-mgmt    # OPTIONAL: capability ID handling this endpoint
-    flow_ref: normal-payment-flow        # OPTIONAL: flow ID if endpoint starts a flow
-    operation_ref: tsdb-migration        # OPTIONAL: operation ID if endpoint triggers an operation
+    capability_refs:                      # OPTIONAL: capability IDs handling this endpoint (list)
+      - subscription-mgmt
+    flow_refs:                           # OPTIONAL: flow IDs this endpoint starts (list)
+      - normal-payment-flow
+    operation_refs:                      # OPTIONAL: operation IDs this endpoint triggers (list)
+      - tsdb-migration
     auth: required                       # OPTIONAL: required | public | admin
 ```
 
@@ -288,7 +288,10 @@ pages:
     interactions:                        # OPTIONAL: user actions available on this page
       - Select subscription plan
       - Enter promo code
-    flow_ref: normal-payment-flow        # OPTIONAL: flow this page participates in
+    capability_refs:                      # OPTIONAL: capability IDs this page uses (list)
+      - subscription-mgmt
+    flow_refs:                           # OPTIONAL: flow IDs this page participates in (list)
+      - normal-payment-flow
     auth: required                       # OPTIONAL: required | public | admin
 ```
 
@@ -472,7 +475,7 @@ Using the entry point code and call graph:
 
 1. Trace the main execution path step by step
 2. Identify branching points (conditionals, error handling)
-3. Document each flow as an ordered list of steps
+3. Document each flow as an ordered list of steps. Use plain strings for most steps; use the extended `{action, capability_ref}` form only when linking to a capability
 4. Create separate flows for the main path and error handling
 
 ### Step 5: Extract entities
@@ -502,7 +505,7 @@ If the service has a REST API, generate `endpoints.yaml`:
 
 1. Scan all controller files for route definitions (annotations, decorators, router registrations)
 2. Create one entry per endpoint
-3. Link each endpoint to its capability, flow, or operation via `capability_ref`, `flow_ref`, or `operation_ref`
+3. Link each endpoint via `capability_refs`, `flow_refs`, or `operation_refs` (all are lists). Before writing, re-read `capabilities.yaml` to recall the exact IDs you declared. Copy IDs **verbatim** — do not abbreviate, generalize, or invent IDs that were never declared. If no declared ID fits, leave the list empty or omit the field.
 4. Every endpoint must have an entry — no endpoint left undocumented
 
 If the service has no REST API (queue consumer, library, CLI tool), skip this step.
@@ -513,7 +516,7 @@ If `has_gui: true` in config.yaml, generate `pages.yaml`:
 
 1. Scan controller files for HTML-returning routes (methods returning a template name or ModelAndView)
 2. For each page, identify the template, what data it displays, and what user interactions it supports
-3. Link to the flow the page participates in where applicable
+3. Link to the flow or capability the page participates in. Use only IDs that exist verbatim in `flows.yaml` or `capabilities.yaml` — do not invent or paraphrase IDs.
 
 If `has_gui: false`, skip this step.
 
@@ -544,20 +547,20 @@ Before writing output, run all checks below. If any check fails, correct the aff
 2. Every `capability_ref` anywhere (flow steps, endpoints, pages) must exist in `capabilities.yaml` — not in `flows.yaml`
 3. Every `flow_ref` anywhere (endpoints, pages, flows) must exist in `flows.yaml` — not in `capabilities.yaml`
 4. Every `operation_ref` in `endpoints.yaml` must exist in `operations.yaml` — not in `flows.yaml`
-4. Every entity relationship target must exist in `entities.yaml`
-5. No duplicate IDs within any file
-6. All IDs are kebab-case
+5. Every entity relationship target must exist in `entities.yaml`
+6. No duplicate IDs within any file
+7. All IDs are kebab-case
 
 **Semantic checks**
 
-6. **Flow actor vs capability source_files** — For every flow step that has a `capability_ref` and **no actor**: the absence of an actor means an external system performs that action. If the referenced capability's `source_files` contains internal modules, the capability is wrong — correct it. Note: a step may have an external actor AND an internal capability_ref — this is valid when the external system does the work but an internal capability triggered or dispatched it.
+1. **Flow step capability_ref** — For every flow step that has a `capability_ref`, verify the ID exists in `capabilities.yaml`. Steps without a `capability_ref` are always valid — most steps should be plain strings.
 
-7. **Write attribution** — For every capability that claims an internal module *writes* to a database or external system, verify that module is reachable from a live request path. Specifically: if the only call sites for that module are under `migration/`, `backfill/`, `scripts/`, `test/`, or similar non-request paths, the API does not perform those writes during normal operation. Remove the module from `source_files` and revise the description — the capability should describe what the API reads or serves, not what an offline process writes.
+2. **Write attribution** — For every capability that claims an internal module *writes* to a database or external system, verify that module is reachable from a live request path. Specifically: if the only call sites for that module are under `migration/`, `backfill/`, `scripts/`, `test/`, or similar non-request paths, the API does not perform those writes during normal operation. Remove the module from `source_files` and revise the description — the capability should describe what the API reads or serves, not what an offline process writes.
 
-8. **Endpoint coverage and accuracy** — If `endpoints.yaml` was generated:
+3. **Endpoint coverage and accuracy** — If `endpoints.yaml` was generated:
    - Every entry must correspond to a real route in a controller file — verify the HTTP method and path against the actual annotation in the code
    - Every controller route must have an entry — no endpoint left undocumented
-   - Every entry must have at least one of: `capability_ref`, `flow_ref`, or `operation_ref`
+   - Prefer linking each entry via `capability_refs`, `flow_refs`, or `operation_refs` (lists) — but leave empty if no declared ID genuinely fits rather than referencing a non-existent one
    - Do not invent endpoints that are not in the source code
 
 
