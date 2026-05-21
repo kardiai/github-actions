@@ -550,7 +550,7 @@ Before writing output, run all checks below. If any check fails, correct the aff
 
 **Semantic checks**
 
-6. **Flow actor vs capability source_files** — For every flow step that has a `capability_ref` and no `actor` field: the absence of an actor means an external system performs that action. If the referenced capability's `description` or `source_files` implies an internal module does that work, the capability is wrong. Correct it to reflect read or serving behaviour only. The flow's actor field (or lack of one) takes precedence over the capability description.
+6. **Flow actor vs capability source_files** — For every flow step that has a `capability_ref` and **no actor**: the absence of an actor means an external system performs that action. If the referenced capability's `source_files` contains internal modules, the capability is wrong — correct it. Note: a step may have an external actor AND an internal capability_ref — this is valid when the external system does the work but an internal capability triggered or dispatched it.
 
 7. **Write attribution** — For every capability that claims an internal module *writes* to a database or external system, verify that module is reachable from a live request path. Specifically: if the only call sites for that module are under `migration/`, `backfill/`, `scripts/`, `test/`, or similar non-request paths, the API does not perform those writes during normal operation. Remove the module from `source_files` and revise the description — the capability should describe what the API reads or serves, not what an offline process writes.
 
