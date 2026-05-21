@@ -13,6 +13,10 @@ inputs:
   doc_generator_access_key:
     description: GitHub App private key used to create the extraction PR
     required: true
+  force_regenerate:
+    description: Set to 'true' to force a full re-extraction ignoring previous meta.yaml
+    required: false
+    default: 'false'
 
 runs:
   using: composite
@@ -34,6 +38,13 @@ runs:
       run: |
         pip install graphifyy mcp pyyaml
         npm install -g @anthropic-ai/claude-code
+
+    - name: Force regenerate
+      if: inputs.force_regenerate == 'true'
+      shell: bash
+      run: |
+        rm -f .extraction/output/meta.yaml
+        echo "::notice::Force regenerate enabled — previous extraction state cleared."
 
     - name: Fetch full git history
       shell: bash
