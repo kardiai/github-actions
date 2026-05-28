@@ -49,12 +49,36 @@ internal_packages: list    # Package prefixes that are internal (not PyPI)
 deprecated:                # Optional — files and capabilities to exclude entirely
   note: string             # Human explanation of why
   files: list              # File paths whose code must not appear in any output
+app_targets:               # Optional — declare when one repo ships multiple distinct apps
+  - id: TargetId           # Target identifier (must match a top-level source directory name)
+    description: string    # What this target ships as
+shared_dirs: list          # Optional — directories holding code shared across targets
 ```
 
 If `config.yaml` contains a `deprecated` section, you MUST:
 - Ignore all code, functions, and capabilities implemented exclusively in the listed files
 - Produce no capabilities, flows, entities, or dependencies that originate only from deprecated files
 - Do not mention deprecated files or their functionality anywhere in the output — not even as "optional" or "legacy"
+
+### Multi-target repositories
+
+If `config.yaml` declares `app_targets:`, the repository ships more than one distinct application from one tree. Every entry in `capabilities.yaml`, `flows.yaml`, `pages.yaml`, and `operations.yaml` MUST carry an `app_targets:` field — a list of target IDs from the config.
+
+Rules for assigning `app_targets`:
+- Derive each target by the leading directory of every path in the entry's `source_files:` — that directory name maps to the target ID.
+- Files under any `shared_dirs:` directory are library code; do not let them alone decide the targets. Instead, list the union of targets whose own (non-shared) source files appear in the same entry.
+- If after the above an entry would have an empty `app_targets:` (only shared files), inspect which target(s) reference those shared files and list those.
+- An entry that legitimately belongs to all declared targets lists them all.
+
+Schema addition for every multi-target entry:
+
+```yaml
+app_targets:                 # REQUIRED in multi-target repos
+  - KardiAiApp
+  - KardiAiWellness
+```
+
+`entities.yaml` and `dependencies.yaml` do not require this field — entities describe shape, dependencies describe external systems, and both can be shared across targets without per-app meaning.
 
 ## Priority Order for Information Sources
 
