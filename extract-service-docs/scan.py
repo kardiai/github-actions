@@ -21,10 +21,22 @@ if __name__ == "__main__":
     project_root = Path(".")
     config = yaml.safe_load((project_root / ".extraction/config.yaml").read_text())
     source_dirs = [project_root / d for d in config.get("source_dirs", [])]
+    ignore_patterns = config.get("ignore_paths", []) or []
     all_files = collect_files(project_root)
+
+    def _ignored(path: Path) -> bool:
+        # Match against the path relative to project root using glob semantics
+        # (`**` recurses across directories, `*` matches one segment).
+        try:
+            rel = path.relative_to(project_root)
+        except ValueError:
+            rel = path
+        return any(rel.full_match(pat) for pat in ignore_patterns)
+
     code_files = [
         f for f in all_files
         if any(str(f).startswith(str(d) + "/") or str(f) == str(d) for d in source_dirs)
+        and not _ignored(f)
     ]
 
     out_dir = project_root / "graphify-out"
