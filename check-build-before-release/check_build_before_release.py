@@ -52,6 +52,12 @@ def read_yaml(file_path):
         raise ValueError(f"Failed to parse YAML: {file_path}") from e
 
 
+EXTRA_MODEL_SYNC_PATHS = {
+    "heartbeat_classification": ["trained-models/point-classification"],
+    "af_detection": ["trained-models/af-detection"],
+}
+
+
 def check_model_versions():
     print("Checking presence of model versions in S3...")
     print(f"If model is missing in S3 bucket {BUCKET_NAME}, it will be copied from S3 bucket {os.getenv('MODEL_STORE_BUCKET')}")
@@ -69,6 +75,46 @@ def check_model_versions():
     model_copied = set()
     model_copy_lock = threading.Lock()
 
+    def path_exists_in_s3(model_path, model_version):
+        s3_prefix = f"{model_path}/{model_version}/"
+        try:
+            response = s3_client.list_objects_v2(Bucket=BUCKET_NAME, Prefix=s3_prefix, MaxKeys=1)
+            return 'Contents' in response
+        except ClientError as e:
+            raise RuntimeError(f"Unexpected S3 error for s3://{BUCKET_NAME}/{s3_prefix}: {e}") from e
+
+    def copy_from_model_store(inference_name, model_path, model_version):
+        model_key = f"{model_path}/{model_version}"
+        with model_copy_lock:
+            if model_key in model_copied:
+                safe_print(f"  {inference_name} [{model_path}] - Already copied from model store. Skipping.")
+                return
+            safe_print(f"  Model {model_key} missing in {BUCKET_NAME}, copying from {os.getenv('MODEL_STORE_BUCKET')}")
+            model_copied.add(model_key)
+
+        MODEL_STORE_AWS_ACCOUNT = os.getenv("MODEL_STORE_AWS_ACCOUNT")
+        MODEL_STORE_AWS_REGION = os.getenv("MODEL_STORE_AWS_REGION")
+        MODEL_STORE_BUCKET = os.getenv("MODEL_STORE_BUCKET")
+        if not MODEL_STORE_AWS_ACCOUNT or not MODEL_STORE_AWS_REGION or not MODEL_STORE_BUCKET:
+            raise EnvironmentError(
+                "Missing required env vars: MODEL_STORE_AWS_ACCOUNT, MODEL_STORE_AWS_REGION, MODEL_STORE_BUCKET"
+            )
+        if not aws_cli_path:
+            raise RuntimeError("AWS CLI not found in PATH — cannot sync models")
+
+        src = f"s3://{MODEL_STORE_BUCKET}/{model_path}/{model_version}/"
+        dst = f"s3://{BUCKET_NAME}/{model_path}/{model_version}/"
+        try:
+            result = subprocess.run(
+                [aws_cli_path, "s3", "sync", src, dst, "--source-region", MODEL_STORE_AWS_REGION],
+                check=True
+            )
+            safe_print(f"  {result}")
+        except Exception as e:
+            with model_copy_lock:
+                model_copied.discard(model_key)
+            raise RuntimeError(f"Failed to sync model {model_key} from model store: {e}") from e
+
     def process_config_file(config_file):
         config_path = os.path.join(STEP_FUNCTION_CONFIG_DIR, config_file)
         config_data = read_json(config_path)
@@ -80,47 +126,24 @@ def check_model_versions():
                 continue
 
             model_version = config_data["ai_inference"][inference_name]["model_version"]
-            s3_prefix = f"{model_path}/{model_version}/"
+            all_paths = [model_path] + EXTRA_MODEL_SYNC_PATHS.get(inference_name, [])
 
-            try:
-                response = s3_client.list_objects_v2(Bucket=BUCKET_NAME, Prefix=s3_prefix, MaxKeys=1)
-            except ClientError as e:
-                raise RuntimeError(f"{inference_name} - Unexpected S3 error: {e}") from e
+            existing_paths = []
+            missing_paths = []
+            for path in all_paths:
+                if path_exists_in_s3(path, model_version):
+                    safe_print(f"  {inference_name} - s3://{BUCKET_NAME}/{path}/{model_version}/ [{os.getenv('AWS_REGION')}] - OK")
+                    existing_paths.append(path)
+                else:
+                    missing_paths.append(path)
 
-            if 'Contents' in response:
-                safe_print(f"  {inference_name} - s3://{BUCKET_NAME}/{s3_prefix} [{os.getenv('AWS_REGION')}] - OK")
-                continue
-
-            model_key = f"{model_path}/{model_version}"
-            with model_copy_lock:
-                if model_key in model_copied:
-                    safe_print(f"  {inference_name} - Model already copied from model store. Skipping.")
-                    continue
-                safe_print(f"  Model {model_key} missing in {BUCKET_NAME}, copying from {os.getenv('MODEL_STORE_BUCKET')}")
-                model_copied.add(model_key)
-
-            MODEL_STORE_AWS_ACCOUNT = os.getenv("MODEL_STORE_AWS_ACCOUNT")
-            MODEL_STORE_AWS_REGION = os.getenv("MODEL_STORE_AWS_REGION")
-            MODEL_STORE_BUCKET = os.getenv("MODEL_STORE_BUCKET")
-            if not MODEL_STORE_AWS_ACCOUNT or not MODEL_STORE_AWS_REGION or not MODEL_STORE_BUCKET:
-                raise EnvironmentError(
-                    "Missing required env vars: MODEL_STORE_AWS_ACCOUNT, MODEL_STORE_AWS_REGION, MODEL_STORE_BUCKET"
+            if not existing_paths:
+                raise RuntimeError(
+                    f"{inference_name}:{model_version} - Model not found in any expected S3 path: {all_paths}"
                 )
-            if not aws_cli_path:
-                raise RuntimeError("AWS CLI not found in PATH — cannot sync models")
 
-            src = f"s3://{MODEL_STORE_BUCKET}/{model_path}/{model_version}/"
-            dst = f"s3://{BUCKET_NAME}/{model_path}/{model_version}/"
-            try:
-                result = subprocess.run(
-                    [aws_cli_path, "s3", "sync", src, dst, "--source-region", MODEL_STORE_AWS_REGION],
-                    check=True
-                )
-                safe_print(f"  {result}")
-            except Exception as e:
-                with model_copy_lock:
-                    model_copied.discard(model_key)
-                raise RuntimeError(f"Failed to sync model {model_key} from model store: {e}") from e
+            for path in missing_paths:
+                copy_from_model_store(inference_name, path, model_version)
 
     with ThreadPoolExecutor() as executor:
         list(executor.map(process_config_file, os.listdir(STEP_FUNCTION_CONFIG_DIR)))
