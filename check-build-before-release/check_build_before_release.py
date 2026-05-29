@@ -126,6 +126,8 @@ def check_model_versions():
                 continue
 
             model_version = config_data["ai_inference"][inference_name]["model_version"]
+            if not model_version or model_version == "null":
+                continue
             all_paths = [model_path] + EXTRA_MODEL_SYNC_PATHS.get(inference_name, [])
 
             existing_paths = []
