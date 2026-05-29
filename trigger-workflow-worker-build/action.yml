@@ -1,0 +1,64 @@
+name: Trigger Workflow Worker Build
+description: Generates a GitHub App token and dispatches a worker build workflow in a target repository
+
+inputs:
+  app-id:
+    description: GitHub App ID for token generation
+    required: true
+  private-key:
+    description: GitHub App private key for token generation
+    required: true
+  environment:
+    description: Environment to build (e.g. primary, secondary)
+    required: true
+  definition-commit:
+    description: Commit SHA of the definition change
+    required: true
+  branch:
+    description: Branch name to pass to the build workflow
+    required: true
+  target-owner:
+    description: Owner of the target repository
+    required: false
+    default: kardiai
+  target-repo:
+    description: Target repository to trigger the build in
+    required: false
+    default: aws-lambdas
+  target-workflow:
+    description: Workflow file to trigger in the target repository
+    required: false
+    default: build-workflow-worker.yaml
+  target-ref:
+    description: Branch/ref in the target repository to trigger
+    required: false
+    default: develop
+
+runs:
+  using: composite
+  steps:
+    - name: Generate GitHub App Token
+      id: app-token
+      uses: actions/create-github-app-token@v3
+      with:
+        app-id: ${{ inputs.app-id }}
+        private-key: ${{ inputs.private-key }}
+        owner: ${{ inputs.target-owner }}
+        repositories: ${{ inputs.target-repo }}
+
+    - name: Trigger Worker Build
+      uses: actions/github-script@v8
+      with:
+        github-token: ${{ steps.app-token.outputs.token }}
+        script: |
+          await github.rest.actions.createWorkflowDispatch({
+            owner: '${{ inputs.target-owner }}',
+            repo: '${{ inputs.target-repo }}',
+            workflow_id: '${{ inputs.target-workflow }}',
+            ref: '${{ inputs.target-ref }}',
+            inputs: {
+              definition_commit: '${{ inputs.definition-commit }}',
+              environment: '${{ inputs.environment }}',
+              branch: '${{ inputs.branch }}'
+            }
+          })
