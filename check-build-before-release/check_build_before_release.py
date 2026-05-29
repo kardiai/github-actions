@@ -1,11 +1,13 @@
 import os
 import sys
+import subprocess
 import json
 import yaml
 from concurrent.futures import ThreadPoolExecutor
 import boto3
 from botocore.exceptions import ClientError
 import threading
+import shutil
 
 STEP_FUNCTION_CONFIG_DIR = "step-functions-config"
 INFERENCE_CONFIG_FILE = "inference-config/lambda.yml"
@@ -58,10 +60,20 @@ EXTRA_MODEL_SYNC_PATHS = {
 
 def check_model_versions():
     print("Checking presence of model versions in S3...")
+    print(f"If model is missing in S3 bucket {BUCKET_NAME}, it will be copied from S3 bucket {os.getenv('MODEL_STORE_BUCKET')}")
+
+    aws_cli_path = shutil.which("aws")
+    if not aws_cli_path:
+        print(f"Warning: AWS CLI not found in PATH. Cannot sync models between environments.")
+        print(f'Debug: OS PATH: {os.getenv("PATH")}')
+    else:
+        print(f"Debug: aws_cli_path: {aws_cli_path}\n")
 
     get_aws_session()
     s3_client = boto3.client('s3')
     inference_config = read_yaml(INFERENCE_CONFIG_FILE)
+    model_copied = set()
+    model_copy_lock = threading.Lock()
 
     def path_exists_in_s3(model_path, model_version):
         s3_prefix = f"{model_path}/{model_version}/"
@@ -70,6 +82,38 @@ def check_model_versions():
             return 'Contents' in response
         except ClientError as e:
             raise RuntimeError(f"Unexpected S3 error for s3://{BUCKET_NAME}/{s3_prefix}: {e}") from e
+
+    def copy_from_model_store(inference_name, model_path, model_version):
+        model_key = f"{model_path}/{model_version}"
+        with model_copy_lock:
+            if model_key in model_copied:
+                safe_print(f"  {inference_name} [{model_path}] - Already copied from model store. Skipping.")
+                return
+            safe_print(f"  Model {model_key} missing in {BUCKET_NAME}, copying from {os.getenv('MODEL_STORE_BUCKET')}")
+            model_copied.add(model_key)
+
+        MODEL_STORE_AWS_ACCOUNT = os.getenv("MODEL_STORE_AWS_ACCOUNT")
+        MODEL_STORE_AWS_REGION = os.getenv("MODEL_STORE_AWS_REGION")
+        MODEL_STORE_BUCKET = os.getenv("MODEL_STORE_BUCKET")
+        if not MODEL_STORE_AWS_ACCOUNT or not MODEL_STORE_AWS_REGION or not MODEL_STORE_BUCKET:
+            raise EnvironmentError(
+                "Missing required env vars: MODEL_STORE_AWS_ACCOUNT, MODEL_STORE_AWS_REGION, MODEL_STORE_BUCKET"
+            )
+        if not aws_cli_path:
+            raise RuntimeError("AWS CLI not found in PATH — cannot sync models")
+
+        src = f"s3://{MODEL_STORE_BUCKET}/{model_path}/{model_version}/"
+        dst = f"s3://{BUCKET_NAME}/{model_path}/{model_version}/"
+        try:
+            result = subprocess.run(
+                [aws_cli_path, "s3", "sync", src, dst, "--source-region", MODEL_STORE_AWS_REGION],
+                check=True
+            )
+            safe_print(f"  {result}")
+        except Exception as e:
+            with model_copy_lock:
+                model_copied.discard(model_key)
+            raise RuntimeError(f"Failed to sync model {model_key} from model store: {e}") from e
 
     def process_config_file(config_file):
         config_path = os.path.join(STEP_FUNCTION_CONFIG_DIR, config_file)
@@ -95,13 +139,14 @@ def check_model_versions():
                 else:
                     missing_paths.append(path)
 
-            if not existing_paths:
-                raise RuntimeError(
-                    f"{inference_name}:{model_version} - Model not found in any expected S3 path: {all_paths}"
-                )
-
-            for path in missing_paths:
-                safe_print(f"  {inference_name} - s3://{BUCKET_NAME}/{path}/{model_version}/ - MISSING (skipped, model present in another path)")
+            if existing_paths:
+                # At least one path has the model — log missing ones but don't cross-sync.
+                for path in missing_paths:
+                    safe_print(f"  {inference_name} - s3://{BUCKET_NAME}/{path}/{model_version}/ - MISSING (skipped, model present in another path)")
+            else:
+                # No path has the model in the target bucket — sync each from its own model store path.
+                for path in all_paths:
+                    copy_from_model_store(inference_name, path, model_version)
 
     with ThreadPoolExecutor() as executor:
         list(executor.map(process_config_file, os.listdir(STEP_FUNCTION_CONFIG_DIR)))
