@@ -1,0 +1,85 @@
+name: Check and Build Temporal Workers
+description: Checks versions, builds Docker images, and triggers temporal worker builds for a specific environment
+
+inputs:
+  app-id:
+    description: GitHub App ID for token generation
+    required: true
+  private-key:
+    description: GitHub App private key for token generation
+    required: true
+  docker-username:
+    description: Docker Hub username
+    required: true
+  docker-access-token:
+    description: Docker Hub access token
+    required: true
+  slack-token:
+    description: Slack token for notifications
+    required: true
+  slack-channel:
+    description: Slack channel for notifications
+    required: true
+  environment:
+    description: Environment to process (primary or secondary)
+    required: true
+  versions-file:
+    description: Path to the versions.yaml file
+    required: true
+  development-environment:
+    description: Development environment identifier (e.g. test, training); leave unset for production
+    required: false
+    default: ''
+  force:
+    description: Force build even without version changes
+    required: false
+    default: 'false'
+
+runs:
+  using: composite
+  steps:
+    - name: Generate GitHub App Token
+      id: app-token
+      uses: actions/create-github-app-token@v3
+      with:
+        app-id: ${{ inputs.app-id }}
+        private-key: ${{ inputs.private-key }}
+        owner: ${{ github.repository_owner }}
+
+    - name: Login to Docker Hub
+      uses: docker/login-action@v4
+      with:
+        username: ${{ inputs.docker-username }}
+        password: ${{ inputs.docker-access-token }}
+
+    - name: Setup Python
+      uses: actions/setup-python@v6
+      with:
+        python-version: '3.12'
+
+    - name: Install dependencies
+      shell: bash
+      run: pip install pyyaml requests
+
+    - name: Process changes and trigger builds
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
+        OWNER: ${{ github.repository_owner }}
+        DOCKER_USERNAME: ${{ inputs.docker-username }}
+        DOCKER_ACCESS_TOKEN: ${{ inputs.docker-access-token }}
+        SLACK_TOKEN: ${{ inputs.slack-token }}
+        SLACK_CHANNEL: ${{ inputs.slack-channel }}
+        PYTHONUNBUFFERED: '1'
+      run: |
+        if [ -n "${{ inputs.development-environment }}" ]; then
+          export DEVELOPMENT_ENVIRONMENT="${{ inputs.development-environment }}"
+        fi
+        FORCE_FLAG=""
+        if [ "${{ inputs.force }}" = "true" ]; then
+          FORCE_FLAG="--force"
+        fi
+        python "${{ github.action_path }}/check-and-build-temporal-workers.py" \
+          --env "${{ inputs.environment }}" \
+          --versions-file "${{ inputs.versions-file }}" \
+          $FORCE_FLAG
