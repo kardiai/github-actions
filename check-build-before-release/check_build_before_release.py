@@ -52,7 +52,7 @@ def read_yaml(file_path):
 
 EXTRA_MODEL_SYNC_PATHS = {
     "heartbeat_classification": ["trained-models/point-classification"],
-    "af_detection": ["trained-models/af-detection"],
+    "af_classification": ["trained-models/af-detection"],
 }
 
 
