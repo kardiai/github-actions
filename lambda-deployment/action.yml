@@ -1,0 +1,90 @@
+name: Lambda Deployment
+description: Validates YAML, deploys Lambda functions, uploads app versions to S3, and sends Slack notification
+
+inputs:
+  aws-access-key-id:
+    description: AWS access key ID for deployment
+    required: true
+  aws-secret-access-key:
+    description: AWS secret access key for deployment
+    required: true
+  aws-region:
+    description: AWS region for deployment
+    required: true
+  app-versions-bucket:
+    description: S3 bucket/prefix for app versions (e.g. my-bucket/app-versions)
+    required: true
+  slack-token:
+    description: Slack token for notifications
+    required: true
+  slack-channel:
+    description: Slack channel for notifications
+    required: true
+  build-for:
+    description: Environment name shown in Slack notification
+    required: true
+  slack-title-suffix:
+    description: Optional suffix appended to Slack notification title (e.g. "in [me-central-1] region")
+    required: false
+    default: ''
+  deploy-extra-args:
+    description: Extra arguments for deploy_lambdas.py (e.g. --region me-central-1 --account 376905289079)
+    required: false
+    default: ''
+
+runs:
+  using: composite
+  steps:
+    - name: Install dependencies
+      shell: bash
+      run: pip install yamllint boto3 PyYAML requests
+
+    - name: Validate YAML files
+      shell: bash
+      run: yamllint -f colored --no-warnings --strict .
+
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ inputs.aws-access-key-id }}
+        aws-secret-access-key: ${{ inputs.aws-secret-access-key }}
+        aws-region: ${{ inputs.aws-region }}
+
+    - name: Ensure log file exists
+      shell: bash
+      run: |
+        if [ ! -f modified_lambdas.log ]; then
+          echo "No lambda changes detected." > modified_lambdas.log
+        fi
+
+    - name: Deploy lambdas
+      shell: bash
+      env:
+        PYTHONPATH: ${{ github.action_path }}/../check-build-before-release
+      run: |
+        python3 "${{ github.action_path }}/deploy_lambdas.py" --yaml-file lambdas.yaml --suffix '' ${{ inputs.deploy-extra-args }}
+        python3 "${{ github.action_path }}/deploy_lambdas.py" --yaml-file lambdas_rc.yaml --suffix '_rc' ${{ inputs.deploy-extra-args }}
+
+    - name: Upload app versions to S3
+      shell: bash
+      run: |
+        aws s3 sync --exclude '*' --include lambdas.yaml --include lambdas_rc.yaml ./ s3://${{ inputs.app-versions-bucket }}/
+
+    - name: Read deployment log
+      id: read_file
+      uses: andstor/file-reader-action@v1
+      with:
+        path: modified_lambdas.log
+
+    - name: Slack notification
+      uses: rtCamp/action-slack-notify@v2
+      env:
+        SLACK_ICON: https://icon.icepanel.io/AWS/svg/Compute/Lambda.svg
+        SLACK_COLOR: ${{ job.status }}
+        SLACK_MESSAGE: ${{ steps.read_file.outputs.contents }}
+        SLACK_TITLE: New Lambdas was deployed on ${{ inputs.build-for }}${{ inputs.slack-title-suffix != '' && format(' {0}', inputs.slack-title-suffix) || '' }}
+        SLACK_USERNAME: lambda-deployment
+        SLACK_TOKEN: ${{ inputs.slack-token }}
+        SLACK_CHANNEL: ${{ inputs.slack-channel }}
+        MSG_MINIMAL: 'true'
+        SLACK_FOOTER: 'send by KardiAI Github Actions'

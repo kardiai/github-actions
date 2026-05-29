@@ -1,0 +1,106 @@
+name: Upload Calculations Settings
+description: Checks model version availability on S3 and uploads calculation settings, inference config, and app versions
+
+inputs:
+  aws-access-key-id:
+    description: AWS access key ID
+    required: true
+  aws-secret-access-key:
+    description: AWS secret access key
+    required: true
+  aws-region:
+    description: AWS region
+    required: true
+  step-function-config-bucket:
+    description: S3 bucket/prefix for step function configs (e.g. my-bucket/step-functions-config)
+    required: true
+  lambda-config-bucket:
+    description: S3 bucket/prefix for inference/lambda configs
+    required: true
+  versions-config-bucket:
+    description: S3 bucket/prefix for app versions
+    required: true
+  training-config-bucket:
+    description: S3 bucket/prefix for model training configs; leave empty to skip
+    required: false
+    default: ''
+  model-store-account:
+    description: AWS account ID of the model store (for copying missing models); leave empty for training environment
+    required: false
+    default: ''
+  model-store-region:
+    description: AWS region of the model store
+    required: false
+    default: ''
+  model-store-bucket:
+    description: S3 bucket name of the model store
+    required: false
+    default: ''
+
+runs:
+  using: composite
+  steps:
+    - name: Install dependencies
+      shell: bash
+      run: pip3 install boto3 PyYAML
+
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v6
+      with:
+        aws-access-key-id: ${{ inputs.aws-access-key-id }}
+        aws-secret-access-key: ${{ inputs.aws-secret-access-key }}
+        aws-region: ${{ inputs.aws-region }}
+
+    - name: Move all calculation settings to one folder
+      shell: bash
+      run: |
+        mkdir -p step-functions-config
+        DATA_PROCESSING_ENVS=$(ls -d data-processing/*) || true
+        if [ -n "$DATA_PROCESSING_ENVS" ]; then
+          for env in $DATA_PROCESSING_ENVS; do
+            [ -d "$env" ] || continue
+            mv $env/*.json step-functions-config/
+          done
+        fi
+
+    - name: Set environment for model check
+      shell: bash
+      run: |
+        echo "STEP_FUNCTION_CONFIG_BUCKET_NAME=${{ inputs.step-function-config-bucket }}" >> $GITHUB_ENV
+        if [ -n "${{ inputs.model-store-bucket }}" ]; then
+          echo "MODEL_STORE_AWS_ACCOUNT=${{ inputs.model-store-account }}" >> $GITHUB_ENV
+          echo "MODEL_STORE_AWS_REGION=${{ inputs.model-store-region }}" >> $GITHUB_ENV
+          echo "MODEL_STORE_BUCKET=${{ inputs.model-store-bucket }}" >> $GITHUB_ENV
+        fi
+
+    - name: Check model version availability on S3
+      uses: kardiai/github-actions/check-build-before-release@main
+      with:
+        check-type: MODEL
+
+    - name: Upload calculation settings to S3
+      shell: bash
+      run: aws s3 sync step-functions-config/ s3://${{ inputs.step-function-config-bucket }}/
+
+    - name: Upload inference config to S3
+      shell: bash
+      run: aws s3 sync inference-config/ s3://${{ inputs.lambda-config-bucket }}/
+
+    - name: Upload model training config to S3
+      if: inputs.training-config-bucket != ''
+      shell: bash
+      run: aws s3 sync model-training-config/ s3://${{ inputs.training-config-bucket }}/
+
+    - name: Move all versions to one folder
+      shell: bash
+      run: |
+        for dir in data-processing/*; do
+          [ -d "$dir" ] || continue
+          name=$(basename "$dir")
+          mkdir -p "app-versions/$name"
+          cp "$dir/versions.yaml" "app-versions/$name/"
+        done
+
+    - name: Upload versions to S3
+      shell: bash
+      run: aws s3 sync app-versions/ s3://${{ inputs.versions-config-bucket }}/
