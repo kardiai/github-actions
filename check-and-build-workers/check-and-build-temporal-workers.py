@@ -79,7 +79,6 @@ def main():
 
     to_build = []
     ready_to_deploy = []
-    updates_to_yaml = []
 
     # Process temporal-workflow-version first (no building, just update values)
     workflow_versions = versions.get('temporal-workflow-version', [])
@@ -118,7 +117,6 @@ def main():
                     'old_tag': old_tag,
                     'new_tag': expected_tag
                 })
-                updates_to_yaml.append((old_tag, expected_tag))
             else:
                 print(f" -> WARNING: Docker image kardiai/temporal-workflow-worker:{expected_tag} NOT FOUND on Docker Hub. Skipping update.")
 
@@ -172,7 +170,6 @@ def main():
                 ready_item['new_image_name'] = expected_image_name
 
             ready_to_deploy.append(ready_item)
-            updates_to_yaml.append((old_tag, expected_tag))
 
             # Docker Hub check
             dh_resp = requests.get(
@@ -283,8 +280,9 @@ def main():
 
         # Apply replacements to the raw yaml text (preserves comments and structure)
         new_yaml_content = r_values.text
-        for old_t, new_t in updates_to_yaml:
-            new_yaml_content = new_yaml_content.replace(old_t, new_t)
+        for item in ready_to_deploy:
+            pattern = rf"^([ \t]*{re.escape(item['name'])}:(?:\n[ \t]+.*)*?\n[ \t]+tag:[ \t]*){re.escape(item['old_tag'])}"
+            new_yaml_content = re.sub(pattern, rf"\g<1>{item['new_tag']}", new_yaml_content, flags=re.MULTILINE)
 
         # Apply image name replacements specifically under the worker's key
         for item in ready_to_deploy:
