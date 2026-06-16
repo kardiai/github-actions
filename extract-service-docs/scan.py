@@ -110,13 +110,22 @@ if __name__ == "__main__":
         + (f" ({source_chunks} chunks)" if source_chunks else "")
     )
 
-    # max_turns: chunk reads + MCP queries (up to 10) + git diff + output writes (10+) + validation + buffer.
+    # Phase 2 (extraction) max_turns: chunk reads + MCP queries (up to 10) + git diff + output writes (10+) + buffer.
     if strategy == "full":
         max_turns = source_chunks + 50
     else:
         max_turns = 65 + int(len(code_files) * 0.15)
 
+    # Phase 3 (validation) max_turns is a safety ceiling, not a budget — the agent stops once the output
+    # is valid. It reads every file in .extraction/output/ (large yaml files cost several Read calls each,
+    # since Read caps at 2000 lines) and does a read+edit per cross-reference fix, which runs 30-50 turns
+    # on a non-trivial repo. Lead with a generous floor and scale loosely with project size; clamp the top
+    # so a confused agent can't spin indefinitely. (Phase 1 runs before output exists, so code_files is
+    # only a proxy for validation cost — hence err generous.)
+    validate_max_turns = min(150, 50 + int(len(code_files) * 0.2))
+
     github_output = Path(os.environ["GITHUB_OUTPUT"]) if "GITHUB_OUTPUT" in os.environ else None
     if github_output:
         with github_output.open("a") as f:
             f.write(f"max_turns={max_turns}\n")
+            f.write(f"validate_max_turns={validate_max_turns}\n")

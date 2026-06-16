@@ -81,7 +81,7 @@ runs:
       run: |
         claude \
           --model claude-sonnet-4-6 \
-          --max-turns 20 \
+          --max-turns "${{ steps.scan.outputs.validate_max_turns }}" \
           --allowedTools "Read,Write,Edit" \
           -p "Read and validate all files in .extraction/output/. Check for and fix:
         1. Broken cross-references — every ID in capability_refs, flow_refs, operation_refs (endpoints.yaml, pages.yaml) must exist in capabilities.yaml, flows.yaml, or operations.yaml respectively; every capability_ref in flow steps must exist in capabilities.yaml; every dependency ID in capabilities and flows must exist in dependencies.yaml
