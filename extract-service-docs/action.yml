@@ -82,10 +82,12 @@ runs:
         claude \
           --model claude-sonnet-4-6 \
           --max-turns "${{ steps.scan.outputs.validate_max_turns }}" \
-          --allowedTools "Read,Write,Edit" \
-          -p "Read and validate all files in .extraction/output/. Check for and fix:
+          --allowedTools "Read,Write,Edit,Grep,Glob" \
+          -p "Read and validate all files in .extraction/output/. You have source-code access — use Grep/Read to verify claims against the code, not just the YAML. Check for and fix:
         1. Broken cross-references — every ID in capability_refs, flow_refs, operation_refs (endpoints.yaml, pages.yaml) must exist in capabilities.yaml, flows.yaml, or operations.yaml respectively; every capability_ref in flow steps must exist in capabilities.yaml; every dependency ID in capabilities and flows must exist in dependencies.yaml
         2. Entity relationship targets — every target in entities.yaml relationships must exist in entities.yaml
+        3. Endpoint description accuracy (spot-check against source) — for any endpoint whose description could have been guessed from its path or HTTP verb (e.g. a GET described as an action, or an id like get-*/list-* that creates or mutates), open the handler in the source and confirm the description, auth, and response match what the code does. Fix any that describe the route name rather than the actual behavior.
+        4. Status/state ownership (spot-check against source) — for any capability, flow, or entity lifecycle that claims this service writes a status/state value, grep the source for an assignment of that value (e.g. 'status =' or '.status ='). If the code only reads or compares the value, correct the text to attribute the write to the system that performs it.
 
         Read the affected files, fix all issues found, and report what was changed. If everything is valid, say so." \
           | tee -a .extraction/agent-output.txt

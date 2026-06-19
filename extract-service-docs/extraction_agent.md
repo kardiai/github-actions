@@ -282,8 +282,9 @@ endpoints:
     method: POST                         # REQUIRED: GET | POST | PUT | DELETE | PATCH
     path: /api/subscriptions/{id}        # REQUIRED: URL path
     controller: SubscriptionController   # REQUIRED: controller class
-    description: |                       # REQUIRED: what this endpoint does
-      What this endpoint does.
+    description: |                       # REQUIRED — read from the handler body, never inferred from the path or HTTP verb
+      What this endpoint actually does and what it returns, taken from the
+      handler implementation (plus any OpenAPI summary / @Operation / docstring).
     capability_refs:                      # OPTIONAL: capability IDs handling this endpoint (list)
       - subscription-mgmt
     flow_refs:                           # OPTIONAL: flow IDs this endpoint starts (list)
@@ -294,6 +295,8 @@ endpoints:
 ```
 
 List every endpoint. For endpoints not covered by a main flow, link to the capability that handles them. Sort by `id`.
+
+**Derive each endpoint's `description`, `auth`, and response from the handler body — never infer them from the path or the HTTP verb.** Open the handler function the route maps to and describe what it actually does. A `GET .../saved-card/{id}` may *create* a charge rather than return a card; a `GET` may mutate state; a path that reads like a getter may be an action. State the real outcome (e.g. "creates a recurring payment and returns a 303 redirect"), not a guess from the route name.
 
 ---
 
@@ -528,9 +531,10 @@ Using the external calls found in source files:
 If the service has a REST API, generate `endpoints.yaml`:
 
 1. Scan all controller files for route definitions (annotations, decorators, router registrations)
-2. Create one entry per endpoint
-3. Link each endpoint via `capability_refs`, `flow_refs`, or `operation_refs` (all are lists). Before writing, re-read `capabilities.yaml` to recall the exact IDs you declared. Copy IDs **verbatim** — do not abbreviate, generalize, or invent IDs that were never declared. If no declared ID fits, leave the list empty or omit the field.
-4. Every endpoint must have an entry — no endpoint left undocumented
+2. For each route, open the handler function it maps to and read its body. Take the `description`, the real `auth` (from the auth dependency/guard on that handler), and the response from the implementation — not from the path or HTTP verb. A `GET` can perform writes; an endpoint whose path reads like a getter can be an action. Describe what the handler actually does and returns.
+3. Create one entry per endpoint
+4. Link each endpoint via `capability_refs`, `flow_refs`, or `operation_refs` (all are lists). Before writing, re-read `capabilities.yaml` to recall the exact IDs you declared. Copy IDs **verbatim** — do not abbreviate, generalize, or invent IDs that were never declared. If no declared ID fits, leave the list empty or omit the field.
+5. Every endpoint must have an entry — no endpoint left undocumented
 
 If the service has no REST API (queue consumer, library, CLI tool), skip this step.
 
@@ -581,8 +585,11 @@ Before writing output, run all checks below. If any check fails, correct the aff
 
 2. **Write attribution** — For every capability that claims an internal module *writes* to a database or external system, verify that module is reachable from a live request path. Specifically: if the only call sites for that module are under `migration/`, `backfill/`, `scripts/`, `test/`, or similar non-request paths, the API does not perform those writes during normal operation. Remove the module from `source_files` and revise the description — the capability should describe what the API reads or serves, not what an offline process writes.
 
+   Apply the same test to **status and state transitions**. Do not attribute a status/state write to this service unless its code actually *assigns* that specific value — reading or comparing a status (e.g. `if status == COMPLETED`) is not writing it. Before stating a transition in a capability, flow, or entity lifecycle, confirm an assignment of that exact value exists (e.g. `model.status = X`). If the service only assigns a subset (e.g. `CREATED`, `EVALUATING`) and another system writes the rest (e.g. `COMPLETED`), say so and attribute the remaining transitions to the external writer rather than implying this service drives the whole lifecycle.
+
 3. **Endpoint coverage and accuracy** — If `endpoints.yaml` was generated:
    - Every entry must correspond to a real route in a controller file — verify the HTTP method and path against the actual annotation in the code
+   - Verify each entry's `description`, `auth`, and response against the **handler body**, not the path or HTTP verb — open the function the route maps to and confirm it does what the description claims (a `GET` can create or mutate; a path that reads like a getter can be an action)
    - Every controller route must have an entry — no endpoint left undocumented
    - Prefer linking each entry via `capability_refs`, `flow_refs`, or `operation_refs` (lists) — but leave empty if no declared ID genuinely fits rather than referencing a non-existent one
    - Do not invent endpoints that are not in the source code
