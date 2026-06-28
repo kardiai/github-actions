@@ -398,35 +398,65 @@ Infrastructure: {
 
 Follow these steps in order:
 
-### Step 0: Check for previous extraction
+### Step 0: Determine mode from the scope file
 
-Check whether `.extraction/output/meta.yaml` exists.
+You do NOT run `git diff` yourself. On an incremental re-extraction a separate scope pass runs
+before you, analyzes the diff in an isolated context, and leaves a routing artifact at
+`.extraction/scope.json`. Your mode is decided by whether that file exists.
 
-**If it exists** (re-extraction run):
+**If `.extraction/scope.json` does NOT exist** — this is a first run or a forced full regenerate.
+Do a complete extraction: proceed through Steps 1–8 over the whole codebase.
 
-Read the file to get the previous commit:
+**If `.extraction/scope.json` exists** — this is an incremental re-extraction. Read it.
 
-```yaml
-commit: "abc123..."
-extracted_at: "2026-01-15T10:30:00Z"
+> `scope.json` is a **routing artifact, not a source of facts.** It tells you WHERE to look —
+> which files changed and which existing entries they touch — never WHAT to write. Never copy a
+> description, behavior, status, response, or relationship out of it into an output file. Treat
+> `touched_symbols`, `shared_files`, `uncovered_changes`, and `notes` as pointers to verify
+> against the real source, not as findings.
+
+Its shape:
+
+```json
+{
+  "empty_diff": false,
+  "previous_commit": "<sha>", "head_commit": "<sha>",
+  "changed_files": ["app/foo.py"], "added_files": [], "deleted_files": [],
+  "touched_symbols": ["app/foo.py:Handler.create"],
+  "affected_outputs": { "capabilities.yaml": ["file-validation"], "endpoints.yaml": ["create-subscription"] },
+  "shared_files": ["app/core/constants.py"],
+  "uncovered_changes": ["app/new_feature.py — no existing entry references it"]
+}
 ```
 
-Run `git diff <commit> HEAD -- <source_dirs>` (using `source_dirs` from `config.yaml`) to see
-the actual source code changes since the last extraction. Always use `-- <source_dirs>` to
-exclude extraction output, CI configs, and other non-source files from the diff.
+Act on it as follows:
 
-**If the diff is empty**:
-- STOP immediately — do NOT proceed to Steps 1–8, do NOT read source files, do NOT regenerate any output
-- Output the Final Summary with `**Git diff:** No changes` and nothing else
+1. **If `empty_diff` is true** (or `affected_outputs` is empty with no `added_files` /
+   `deleted_files`): STOP. Do not read source, do not regenerate. Print the Final Summary with
+   `**Git diff:** No changes` and nothing else.
 
-**If the diff is non-empty**:
-- Read the existing output files in `.extraction/output/`
-- Identify which capabilities, flows, entities, endpoints, or operations are implemented in the changed source files
-- Update ONLY those specific entries — do NOT rewrite or regenerate entries unaffected by the diff
-- New files added → add new entries they introduce
-- Files deleted → remove entries they exclusively implemented
+2. **Otherwise, update only what changed — but treat `affected_outputs` as a floor, not a ceiling:**
+   - For each file + ID in `affected_outputs`, read that entry from the existing
+     `.extraction/output/<file>` so you preserve its unaffected fields.
+   - Read the ACTUAL changed source — the full bodies of the functions/handlers in `changed_files`
+     and `added_files`, focusing on `touched_symbols`. Verify behavior against the real code; never
+     infer it from the scope file, the path, or a name.
+   - **Reconcile, don't just preserve.** You are NOT given the diff text — only which files and
+     symbols changed. So for every affected entry, actively compare its existing description against
+     the current source and correct anything the change made false: a condition or field that now
+     differs (e.g. a cancellation that keys off `validFrom` where the entry still says `validTo`),
+     an attribute whose owner moved, a step that no longer happens, behavior that was removed. Keep
+     only the claims the current code still supports — preserving a now-stale description is a bug.
+   - Rewrite ONLY entries the change actually affects. `affected_outputs` is the **minimum** set:
+     if a changed file (especially one listed in `shared_files`) clearly alters an entry the scope
+     pass did not list, update that entry too. Files in `added_files` or `uncovered_changes` → add
+     the new entries they introduce. `deleted_files` → remove any entry they exclusively implemented.
+   - Do NOT gratuitously rewrite entries the diff does not touch.
+   - Skip the broad graphify orientation in Step 2 unless `uncovered_changes` (or a `shared_files`
+     entry) points to an area with no existing entry — then orient narrowly via graphify for that
+     area only, not the whole graph.
 
-**If it does not exist** (first run): proceed normally, no diff is needed.
+Use the `changed_files` list from `scope.json` to fill the `**Git diff:**` line of the Final Summary.
 
 ---
 

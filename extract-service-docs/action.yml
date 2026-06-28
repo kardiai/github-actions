@@ -59,7 +59,55 @@ runs:
       shell: bash
       run: python3 "${{ github.action_path }}/scan.py"
 
+    # Incremental only: a previous extraction exists and this is not a forced full rebuild.
+    - name: Detect extraction mode
+      id: mode
+      if: inputs.force_regenerate == 'false'
+      shell: bash
+      run: |
+        if [[ -f .extraction/output/meta.yaml ]]; then
+          echo "incremental=true" >> "$GITHUB_OUTPUT"
+          echo "::notice::Previous extraction found — running isolated scope pass."
+        else
+          echo "incremental=false" >> "$GITHUB_OUTPUT"
+          echo "::notice::No previous extraction — running full extraction."
+        fi
+
+    # Isolated subagent: analyzes the git diff in its OWN context and writes a routing map
+    # (.extraction/scope.json) so Phase 2's context stays free of the raw diff and full output.
+    - name: "Phase 1b: Scope incremental diff"
+      if: steps.mode.outputs.incremental == 'true'
+      shell: bash
+      env:
+        ANTHROPIC_API_KEY: ${{ inputs.anthropic_api_key }}
+        NO_COLOR: "1"
+      run: |
+        claude \
+          --model claude-sonnet-4-6 \
+          --max-turns 25 \
+          --allowedTools "Bash(git diff*),Bash(git rev-parse*),Read,Write" \
+          -p "Read ${{ github.action_path }}/scope_agent.md and follow the instructions exactly." \
+          | tee .extraction/scope-output.txt
+
+    - name: Evaluate scope
+      id: scope
+      if: steps.mode.outputs.incremental == 'true'
+      shell: bash
+      run: |
+        if [[ -f .extraction/no-changes ]]; then
+          echo "has_changes=false" >> "$GITHUB_OUTPUT"
+          echo "::notice::Scope pass found no source changes — skipping extraction and PR."
+        else
+          echo "has_changes=true" >> "$GITHUB_OUTPUT"
+          if [[ ! -f .extraction/scope.json ]]; then
+            echo "::warning::Scope pass produced neither scope.json nor a no-changes marker — it likely failed. Falling back to a full extraction (Phase 2 finds no scope.json and rebuilds everything)."
+          fi
+        fi
+
+    # Skipped only when the scope pass proved the diff empty. First runs and forced rebuilds
+    # leave has_changes unset ('' != 'false'), so they still run a full extraction.
     - name: "Phase 2: AI Extraction"
+      if: steps.scope.outputs.has_changes != 'false'
       shell: bash
       env:
         ANTHROPIC_API_KEY: ${{ inputs.anthropic_api_key }}
@@ -69,11 +117,12 @@ runs:
           --model claude-sonnet-4-6 \
           --max-turns "${{ steps.scan.outputs.max_turns }}" \
           --mcp-config "${{ github.action_path }}/graphify-mcp.json" \
-          --allowedTools "Bash(git diff*),Read,Write,mcp__graphify__graph_stats,mcp__graphify__god_nodes,mcp__graphify__query_graph,mcp__graphify__get_community" \
+          --allowedTools "Read,Write,mcp__graphify__graph_stats,mcp__graphify__god_nodes,mcp__graphify__query_graph,mcp__graphify__get_community" \
           -p "Read ${{ github.action_path }}/extraction_agent.md and follow the instructions exactly." \
           | tee .extraction/agent-output.txt
 
     - name: "Phase 3: Validate and fix output"
+      if: steps.scope.outputs.has_changes != 'false'
       shell: bash
       env:
         ANTHROPIC_API_KEY: ${{ inputs.anthropic_api_key }}
