@@ -1,0 +1,68 @@
+name: Seal Data Processing Package
+description: >
+  Stamps a data-processing slot with a CalVer version (YYYY.MM.DD-N),
+  updates manifest.yaml, and creates a git tag. Run from a TRAINING branch.
+
+inputs:
+  slot:
+    description: "Slot to seal: primary or secondary"
+    required: true
+
+outputs:
+  version:
+    description: "Assigned package version (YYYY.MM.DD-N)"
+    value: ${{ steps.ver.outputs.version }}
+  tag:
+    description: "Git tag created (dp-{slot}-{version})"
+    value: ${{ steps.ver.outputs.tag }}
+
+runs:
+  using: composite
+  steps:
+    - name: Setup Python
+      uses: actions/setup-python@v6
+      with:
+        python-version: '3.12'
+
+    - name: Install dependencies
+      shell: bash
+      run: pip install pyyaml
+
+    - name: Validate slot is in_progress
+      shell: bash
+      env:
+        SLOT: ${{ inputs.slot }}
+      run: python3 "${{ github.action_path }}/seal_dp_package.py" --validate
+
+    - name: Generate package version
+      id: ver
+      shell: bash
+      run: |
+        DATE=$(date -u +%Y.%m.%d)
+        SLOT="${{ inputs.slot }}"
+        COUNT=$(git tag -l "dp-${SLOT}-${DATE}-*" | wc -l | tr -d ' ')
+        SEQ=$((COUNT + 1))
+        VERSION="${DATE}-${SEQ}"
+        TAG="dp-${SLOT}-${VERSION}"
+        echo "version=${VERSION}" >> $GITHUB_OUTPUT
+        echo "tag=${TAG}"         >> $GITHUB_OUTPUT
+        echo "Sealing as: ${VERSION} (tag: ${TAG})"
+
+    - name: Update manifest.yaml
+      shell: bash
+      env:
+        SLOT:    ${{ inputs.slot }}
+        VERSION: ${{ steps.ver.outputs.version }}
+        TAG:     ${{ steps.ver.outputs.tag }}
+        ACTOR:   ${{ github.actor }}
+      run: python3 "${{ github.action_path }}/seal_dp_package.py" --seal
+
+    - name: Commit and push tag
+      shell: bash
+      run: |
+        git config user.name  "github-actions[bot]"
+        git config user.email "github-actions[bot]@users.noreply.github.com"
+        git add "data-processing/${{ inputs.slot }}/manifest.yaml"
+        git commit -m "seal: dp/${{ inputs.slot }} → ${{ steps.ver.outputs.version }}"
+        git tag "${{ steps.ver.outputs.tag }}"
+        git push origin HEAD "${{ steps.ver.outputs.tag }}"

@@ -1,0 +1,151 @@
+name: "DP: Notify on PR Merged (reusable)"
+
+# Reusable workflow — called from release-management on pull_request closed+merged.
+# Reads the approver from PR reviews, appends approved_by to manifest.yaml,
+# and posts a Slack thread reply.
+
+on:
+  workflow_call:
+    inputs:
+      pr_number:
+        description: "Merged PR number"
+        type: string
+        required: true
+      action_type:
+        description: "promote or upgrade (derived from PR label by caller)"
+        type: string
+        required: true
+      target_branch:
+        description: "Branch that was merged into (TEST or PROD)"
+        type: string
+        required: true
+      slack_channel:
+        description: "Slack channel ID (parsed from PR body by caller)"
+        type: string
+        required: true
+      slack_thread_ts:
+        description: "Slack thread ts (parsed from PR body by caller)"
+        type: string
+        required: true
+    secrets:
+      SLACK_BOT_TOKEN:
+        required: true
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: read
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref:        ${{ inputs.target_branch }}
+          fetch-depth: 0
+          token:      ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.14'
+
+      - name: Install dependencies
+        run: pip install pyyaml
+
+      - name: Get PR approver
+        id: reviewer
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const reviews = await github.rest.pulls.listReviews({
+              owner:       context.repo.owner,
+              repo:        context.repo.repo,
+              pull_number: parseInt("${{ inputs.pr_number }}"),
+            });
+            const approved = reviews.data.find(r => r.state === "APPROVED");
+            core.setOutput("approved_by", approved ? approved.user.login : "");
+
+      - name: Append approved_by and merged_at to manifest
+        env:
+          ACTION_TYPE:  ${{ inputs.action_type }}
+          APPROVED_BY:  ${{ steps.reviewer.outputs.approved_by }}
+          PR_NUMBER:    ${{ inputs.pr_number }}
+        run: |
+          python3 << 'EOF'
+          import os, yaml
+          from datetime import datetime, timezone
+
+          action      = os.environ["ACTION_TYPE"]
+          approved_by = os.environ["APPROVED_BY"]
+          pr_number   = os.environ["PR_NUMBER"]
+          now         = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+          # promote → secondary/manifest.yaml; upgrade → primary/manifest.yaml
+          slot = "secondary" if action == "promote" else "primary"
+          path = f"data-processing/{slot}/manifest.yaml"
+
+          with open(path) as f:
+              manifest = yaml.safe_load(f)
+
+          promotions = manifest.get("promotions") or []
+          if promotions:
+              promotions[-1]["approved_by"] = approved_by
+              promotions[-1]["merged_at"]   = now
+              promotions[-1]["pr"]          = int(pr_number)
+          manifest["promotions"] = promotions
+
+          with open(path, "w") as f:
+              yaml.dump(manifest, f, default_flow_style=False, allow_unicode=True, sort_keys=False)
+
+          print(f"Updated {path}: approved_by={approved_by}, merged_at={now}")
+          EOF
+
+      - name: Commit manifest update
+        run: |
+          ACTION="${{ inputs.action_type }}"
+          SLOT=$([ "$ACTION" = "promote" ] && echo "secondary" || echo "primary")
+
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add "data-processing/${SLOT}/manifest.yaml"
+          git diff --cached --quiet || \
+            git commit -m "chore: record approved_by in dp/${SLOT}/manifest (PR #${{ inputs.pr_number }})"
+          git push origin "${{ inputs.target_branch }}"
+
+      - name: Post Slack thread reply
+        env:
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+          SLACK_CHANNEL:   ${{ inputs.slack_channel }}
+          SLACK_THREAD_TS: ${{ inputs.slack_thread_ts }}
+          APPROVED_BY:     ${{ steps.reviewer.outputs.approved_by }}
+          ACTION_TYPE:     ${{ inputs.action_type }}
+          PR_NUMBER:       ${{ inputs.pr_number }}
+        run: |
+          python3 << 'EOF'
+          import os, json, urllib.request
+
+          token       = os.environ["SLACK_BOT_TOKEN"]
+          channel     = os.environ["SLACK_CHANNEL"]
+          thread_ts   = os.environ["SLACK_THREAD_TS"]
+          approved_by = os.environ["APPROVED_BY"]
+          action      = os.environ["ACTION_TYPE"]
+          pr_number   = os.environ["PR_NUMBER"]
+
+          verb         = "Promote merged" if action == "promote" else "Upgrade merged"
+          approver_txt = f"schválil @{approved_by}" if approved_by else "auto-merged"
+
+          text = f"✅ *{verb}* — PR #{pr_number} ({approver_txt})\n_Čeká na sync ArgoCD._"
+
+          payload = {"channel": channel, "thread_ts": thread_ts, "text": text}
+          req = urllib.request.Request(
+              "https://slack.com/api/chat.postMessage",
+              data=json.dumps(payload).encode(), method="POST"
+          )
+          req.add_header("Authorization", f"Bearer {token}")
+          req.add_header("Content-Type", "application/json; charset=utf-8")
+          with urllib.request.urlopen(req) as r:
+              result = json.loads(r.read())
+          if not result.get("ok"):
+              raise RuntimeError(f"Slack error: {result.get('error')}")
+          EOF

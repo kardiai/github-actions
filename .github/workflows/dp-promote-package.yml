@@ -1,0 +1,124 @@
+name: "DP: Promote Package (reusable)"
+
+# Reusable workflow — called from release-management after environment approval.
+# Copies a sealed data-processing package from a TRAINING branch to [secondary]
+# of a target environment, then registers a GitHub Deployment.
+
+on:
+  workflow_call:
+    inputs:
+      source_branch:
+        description: "Source TRAINING branch (e.g. TEST-TRAINING)"
+        type: string
+        required: true
+      source_slot:
+        description: "Source slot: primary or secondary"
+        type: string
+        required: true
+      target_env:
+        description: "Target GitHub environment (e.g. test-secondary)"
+        type: string
+        required: true
+      target_branch:
+        description: "Target git branch (e.g. TEST)"
+        type: string
+        required: true
+      version:
+        description: "Package version being promoted"
+        type: string
+        required: true
+
+jobs:
+  promote:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      deployments: write
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: pip install pyyaml
+
+      - name: Copy package files to target branch
+        run: |
+          SRC_BRANCH="${{ inputs.source_branch }}"
+          SRC_SLOT="${{ inputs.source_slot }}"
+          TGT_BRANCH="${{ inputs.target_branch }}"
+
+          git fetch origin
+
+          # Collect source files
+          TMPDIR=$(mktemp -d)
+          while IFS= read -r file; do
+            git show "origin/${SRC_BRANCH}:data-processing/${SRC_SLOT}/${file}" > "${TMPDIR}/${file}"
+          done < <(git ls-tree --name-only "origin/${SRC_BRANCH}:data-processing/${SRC_SLOT}/")
+
+          # Switch to target branch and overwrite secondary slot
+          git checkout "${TGT_BRANCH}"
+          cp "${TMPDIR}/"* data-processing/secondary/
+
+      - name: Append promotion record to manifest
+        env:
+          TARGET_ENV: ${{ inputs.target_env }}
+          ACTOR:      ${{ github.actor }}
+        run: |
+          python3 << 'EOF'
+          import os, yaml
+          from datetime import datetime, timezone
+
+          target_env = os.environ["TARGET_ENV"]
+          actor      = os.environ["ACTOR"]
+          now        = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+          path = "data-processing/secondary/manifest.yaml"
+          with open(path) as f:
+              manifest = yaml.safe_load(f)
+
+          entry = {"to": target_env, "at": now, "by": actor}
+          manifest.setdefault("promotions", []).append(entry)
+
+          with open(path, "w") as f:
+              yaml.dump(manifest, f, default_flow_style=False, allow_unicode=True, sort_keys=False)
+
+          print(f"Promotion recorded: → {target_env} at {now}")
+          EOF
+
+      - name: Commit to target branch
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data-processing/secondary/
+          git commit -m "promote: dp/secondary ${{ inputs.version }} → ${{ inputs.target_env }}"
+          git push origin "${{ inputs.target_branch }}"
+
+      - name: Register GitHub Deployment
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const dep = await github.rest.repos.createDeployment({
+              owner:             context.repo.owner,
+              repo:              context.repo.repo,
+              ref:               "${{ inputs.target_branch }}",
+              environment:       "${{ inputs.target_env }}",
+              description:       "dp/${{ inputs.source_slot }} ${{ inputs.version }} → ${{ inputs.target_env }} by ${{ github.actor }}",
+              auto_merge:        false,
+              required_contexts: []
+            });
+            await github.rest.repos.createDeploymentStatus({
+              owner:         context.repo.owner,
+              repo:          context.repo.repo,
+              deployment_id: dep.data.id,
+              state:         "success",
+              description:   "${{ inputs.version }} promoted"
+            });
+            console.log(`Deployment #${dep.data.id} registered for ${{ inputs.target_env }}`);

@@ -1,0 +1,105 @@
+name: "DP: Upgrade Package secondary → primary (reusable)"
+
+# Reusable workflow — called from release-management after environment approval.
+# Copies data-processing/secondary → data-processing/primary within the same
+# target branch (TEST or PROD), then registers a GitHub Deployment.
+
+on:
+  workflow_call:
+    inputs:
+      target_env:
+        description: "Environment being upgraded: test or prod"
+        type: string
+        required: true
+      target_branch:
+        description: "Target git branch (e.g. TEST or PROD)"
+        type: string
+        required: true
+      version:
+        description: "Package version being upgraded"
+        type: string
+        required: true
+
+jobs:
+  upgrade:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      deployments: write
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: pip install pyyaml
+
+      - name: Copy secondary → primary
+        run: |
+          git fetch origin
+          git checkout "${{ inputs.target_branch }}"
+          cp -r data-processing/secondary/. data-processing/primary/
+
+      - name: Append upgrade record to primary manifest
+        env:
+          TARGET_ENV: ${{ inputs.target_env }}
+          ACTOR:      ${{ github.actor }}
+        run: |
+          python3 << 'EOF'
+          import os, yaml
+          from datetime import datetime, timezone
+
+          target_env = os.environ["TARGET_ENV"]
+          actor      = os.environ["ACTOR"]
+          now        = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+          path = "data-processing/primary/manifest.yaml"
+          with open(path) as f:
+              manifest = yaml.safe_load(f)
+
+          entry = {"to": f"{target_env}/primary", "at": now, "by": actor}
+          manifest.setdefault("promotions", []).append(entry)
+
+          with open(path, "w") as f:
+              yaml.dump(manifest, f, default_flow_style=False, allow_unicode=True, sort_keys=False)
+
+          print(f"Upgrade recorded: {target_env}/secondary → {target_env}/primary at {now}")
+          EOF
+
+      - name: Commit to target branch
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data-processing/primary/
+          git commit -m "upgrade: dp/primary ${{ inputs.version }} (${{ inputs.target_env }})"
+          git push origin "${{ inputs.target_branch }}"
+
+      - name: Register GitHub Deployment
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const env = "${{ inputs.target_env }}-primary";
+            const dep = await github.rest.repos.createDeployment({
+              owner:             context.repo.owner,
+              repo:              context.repo.repo,
+              ref:               "${{ inputs.target_branch }}",
+              environment:       env,
+              description:       "dp/secondary ${{ inputs.version }} upgraded to ${{ inputs.target_env }}/primary by ${{ github.actor }}",
+              auto_merge:        false,
+              required_contexts: []
+            });
+            await github.rest.repos.createDeploymentStatus({
+              owner:         context.repo.owner,
+              repo:          context.repo.repo,
+              deployment_id: dep.data.id,
+              state:         "success",
+              description:   "Upgrade ${{ inputs.version }} complete"
+            });
+            console.log(`Deployment #${dep.data.id} registered for ${env}`);

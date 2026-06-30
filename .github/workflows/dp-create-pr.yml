@@ -1,0 +1,230 @@
+name: "DP: Create Promote/Upgrade PR (reusable)"
+
+# Reusable workflow — called from release-management after Lambda triggers it.
+# Creates a PR branch, copies data-processing files, opens a labelled PR,
+# and posts a Slack thread reply with a link to the PR.
+
+on:
+  workflow_call:
+    inputs:
+      action_type:
+        description: "promote or upgrade"
+        type: string
+        required: true
+      source_branch:
+        description: "Source TRAINING branch (promote only)"
+        type: string
+        required: false
+        default: ''
+      source_slot:
+        description: "Source slot — primary or secondary (promote only)"
+        type: string
+        required: false
+        default: ''
+      target_env:
+        description: "Target environment (e.g. test-secondary, prod, test)"
+        type: string
+        required: true
+      target_branch:
+        description: "Target git branch (e.g. TEST, PROD)"
+        type: string
+        required: true
+      requested_by:
+        description: "Slack username of the person who triggered the command"
+        type: string
+        required: true
+      slack_channel:
+        description: "Slack channel ID for thread replies"
+        type: string
+        required: true
+      slack_thread_ts:
+        description: "Slack message ts of the initial request message"
+        type: string
+        required: true
+    secrets:
+      SLACK_BOT_TOKEN:
+        required: true
+
+jobs:
+  create-pr:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.14'
+
+      - name: Install dependencies
+        run: pip install pyyaml
+
+      - name: Validate package is sealed
+        id: validate
+        run: |
+          git fetch origin
+
+          if [ "${{ inputs.action_type }}" = "promote" ]; then
+            REF="origin/${{ inputs.source_branch }}:data-processing/${{ inputs.source_slot }}/manifest.yaml"
+          else
+            REF="origin/${{ inputs.target_branch }}:data-processing/secondary/manifest.yaml"
+          fi
+
+          MANIFEST=$(git show "${REF}")
+          STATUS=$(echo "$MANIFEST" | python3 -c "import yaml,sys; m=yaml.safe_load(sys.stdin); print(m['package']['status'])")
+          VERSION=$(echo "$MANIFEST" | python3 -c "import yaml,sys; m=yaml.safe_load(sys.stdin); print(m['package']['version'])")
+
+          if [ "$STATUS" != "sealed" ]; then
+            echo "ERROR: Package status is '${STATUS}' — must be sealed"
+            exit 1
+          fi
+
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          echo "Package ${VERSION} is sealed ✓"
+
+      - name: Create PR branch and copy files
+        id: branch
+        run: |
+          VERSION="${{ steps.validate.outputs.version }}"
+          ACTION="${{ inputs.action_type }}"
+          TARGET_BRANCH="${{ inputs.target_branch }}"
+
+          git fetch origin
+
+          if [ "$ACTION" = "promote" ]; then
+            PR_BRANCH="dp-promote/${VERSION}-to-${{ inputs.target_env }}"
+            git checkout -b "${PR_BRANCH}" "origin/${TARGET_BRANCH}"
+
+            TMPDIR=$(mktemp -d)
+            while IFS= read -r file; do
+              git show "origin/${{ inputs.source_branch }}:data-processing/${{ inputs.source_slot }}/${file}" \
+                > "${TMPDIR}/${file}"
+            done < <(git ls-tree --name-only \
+              "origin/${{ inputs.source_branch }}:data-processing/${{ inputs.source_slot }}/")
+            cp "${TMPDIR}/"* data-processing/secondary/
+          else
+            PR_BRANCH="dp-upgrade/${VERSION}-${{ inputs.target_env }}"
+            git checkout -b "${PR_BRANCH}" "origin/${TARGET_BRANCH}"
+            cp -r data-processing/secondary/. data-processing/primary/
+          fi
+
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data-processing/
+          git commit -m "${{ inputs.action_type }}: dp/${VERSION} → ${{ inputs.target_env }}"
+          git push origin "${PR_BRANCH}"
+
+          echo "pr_branch=${PR_BRANCH}" >> $GITHUB_OUTPUT
+
+      - name: Open Pull Request with label
+        id: pr
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const action    = "${{ inputs.action_type }}";
+            const version   = "${{ steps.validate.outputs.version }}";
+            const targetEnv = "${{ inputs.target_env }}";
+            const requester = "${{ inputs.requested_by }}";
+            const prBranch  = "${{ steps.branch.outputs.pr_branch }}";
+            const base      = "${{ inputs.target_branch }}";
+            const channel   = "${{ inputs.slack_channel }}";
+            const threadTs  = "${{ inputs.slack_thread_ts }}";
+
+            const title = action === "promote"
+              ? `promote: dp/${{ inputs.source_slot }} ${version} → ${targetEnv}`
+              : `upgrade: dp/secondary ${version} → ${targetEnv}/primary`;
+
+            const meta = `\n\n<!-- dp_slack_channel: ${channel} -->\n<!-- dp_slack_thread_ts: ${threadTs} -->`;
+
+            const body = action === "promote"
+              ? `## DP Package Promote\n\n**Package:** \`${version}\`\n**From:** \`${{ inputs.source_branch }}/${{ inputs.source_slot }}\`\n**To:** \`${targetEnv}\`\n**Requested by:** @${requester}\n\n_Review the diff and approve to proceed._${meta}`
+              : `## DP Package Upgrade\n\n**Package:** \`${version}\`\n**Transition:** \`${targetEnv}/secondary\` → \`${targetEnv}/primary\`\n**Requested by:** @${requester}\n\n_Review the diff and approve to proceed._${meta}`;
+
+            const label = action === "promote" ? "dp-promote" : "dp-upgrade";
+
+            const pr = await github.rest.pulls.create({
+              owner: context.repo.owner,
+              repo:  context.repo.repo,
+              title, body,
+              head:  prBranch,
+              base,
+            });
+
+            // Ensure label exists, then apply it
+            try {
+              await github.rest.issues.createLabel({
+                owner: context.repo.owner, repo: context.repo.repo,
+                name:  label,
+                color: action === "promote" ? "0075ca" : "e4e669",
+              });
+            } catch (_) { /* label already exists */ }
+
+            await github.rest.issues.addLabels({
+              owner:        context.repo.owner,
+              repo:         context.repo.repo,
+              issue_number: pr.data.number,
+              labels:       [label],
+            });
+
+            core.setOutput("pr_number", String(pr.data.number));
+            core.setOutput("pr_url",    pr.data.html_url);
+
+      - name: Reply in Slack thread with PR link
+        env:
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+          PR_URL:          ${{ steps.pr.outputs.pr_url }}
+          PR_NUMBER:       ${{ steps.pr.outputs.pr_number }}
+          VERSION:         ${{ steps.validate.outputs.version }}
+          SLACK_CHANNEL:   ${{ inputs.slack_channel }}
+          SLACK_THREAD_TS: ${{ inputs.slack_thread_ts }}
+          ACTION_TYPE:     ${{ inputs.action_type }}
+          TARGET_ENV:      ${{ inputs.target_env }}
+        run: |
+          python3 << 'EOF'
+          import os, json, urllib.request
+
+          token     = os.environ["SLACK_BOT_TOKEN"]
+          pr_url    = os.environ["PR_URL"]
+          pr_number = os.environ["PR_NUMBER"]
+          version   = os.environ["VERSION"]
+          channel   = os.environ["SLACK_CHANNEL"]
+          thread_ts = os.environ["SLACK_THREAD_TS"]
+          action    = os.environ["ACTION_TYPE"]
+          target    = os.environ["TARGET_ENV"]
+
+          text = (f"✅ PR *#{pr_number}* připraven — `{version}` → `{target}`"
+                  if action == "promote"
+                  else f"✅ PR *#{pr_number}* připraven — upgrade `{target}`")
+
+          payload = {
+              "channel":   channel,
+              "thread_ts": thread_ts,
+              "blocks": [
+                  {"type": "section", "text": {"type": "mrkdwn", "text": text}},
+                  {"type": "actions", "elements": [{
+                      "type":      "button",
+                      "text":      {"type": "plain_text", "text": "🔍 Review PR"},
+                      "url":       pr_url,
+                      "action_id": "open_pr",
+                  }]},
+              ],
+          }
+
+          req = urllib.request.Request(
+              "https://slack.com/api/chat.postMessage",
+              data=json.dumps(payload).encode(), method="POST"
+          )
+          req.add_header("Authorization", f"Bearer {token}")
+          req.add_header("Content-Type", "application/json; charset=utf-8")
+          with urllib.request.urlopen(req) as r:
+              result = json.loads(r.read())
+          if not result.get("ok"):
+              raise RuntimeError(f"Slack error: {result.get('error')}")
+          EOF
