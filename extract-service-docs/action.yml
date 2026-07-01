@@ -83,7 +83,7 @@ runs:
         NO_COLOR: "1"
       run: |
         claude \
-          --model claude-sonnet-4-6 \
+          --model claude-sonnet-5 \
           --max-turns 25 \
           --allowedTools "Bash(git diff*),Bash(git rev-parse*),Read,Write" \
           -p "Read ${{ github.action_path }}/scope_agent.md and follow the instructions exactly." \
@@ -114,7 +114,7 @@ runs:
         NO_COLOR: "1"
       run: |
         claude \
-          --model claude-sonnet-4-6 \
+          --model claude-sonnet-5 \
           --max-turns "${{ steps.scan.outputs.max_turns }}" \
           --mcp-config "${{ github.action_path }}/graphify-mcp.json" \
           --allowedTools "Read,Write,mcp__graphify__graph_stats,mcp__graphify__god_nodes,mcp__graphify__query_graph,mcp__graphify__get_community" \
@@ -129,7 +129,7 @@ runs:
         NO_COLOR: "1"
       run: |
         claude \
-          --model claude-sonnet-4-6 \
+          --model claude-sonnet-5 \
           --max-turns "${{ steps.scan.outputs.validate_max_turns }}" \
           --allowedTools "Read,Write,Edit,Grep,Glob" \
           -p "Read and validate all files in .extraction/output/. You have source-code access — use Grep/Read to verify claims against the code, not just the YAML. Check for and fix:
